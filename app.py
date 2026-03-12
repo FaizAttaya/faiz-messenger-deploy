@@ -8,7 +8,7 @@ Install: pip install flask flask-socketio "g4f[all]"
 import os, sys, json, datetime, sqlite3, threading, time, re
 
 # ── Auto-install ──────────────────────────────────────────────────────────────
-def # install_deps():
+def install_deps():
     import subprocess
     pkgs = ["flask", "flask-socketio", "g4f[all]"]
     for p in pkgs:
@@ -19,7 +19,7 @@ def # install_deps():
             try: subprocess.check_call([sys.executable,"-m","pip","install",p,"-q","--break-system-packages"],stderr=subprocess.DEVNULL)
             except: subprocess.check_call([sys.executable,"-m","pip","install",p,"-q"])
 
-# install_deps()
+# install_deps()  # Disabled for deployment
 
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
