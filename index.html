@@ -1,0 +1,2396 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Faiz Messenger</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════
+   DESIGN TOKENS — Editorial Minimalism
+═══════════════════════════════════════════════════ */
+:root {
+  /* Parchment palette */
+  --bg:        #f6f3ec;
+  --surface:   #fdfaf4;
+  --surface-2: #f0ece0;
+  --surface-3: #e6e0d0;
+  --border:    #ddd7c4;
+  --border-2:  #c8c0a8;
+
+  /* Ink palette */
+  --ink:       #1a1812;
+  --ink-2:     #4a453a;
+  --ink-3:     #8a8070;
+  --ink-4:     #b8b0a0;
+
+  /* Accent — warm gold, used sparingly */
+  --gold:      #9a7028;
+  --gold-lt:   #c89840;
+  --gold-dim:  #f4e8d0;
+  --gold-mist: #faf3e4;
+
+  /* Functional */
+  --red:       #b83228;
+  --red-dim:   #fcedeb;
+  --blue:      #24509c;
+  --blue-dim:  #eaeffa;
+  --green:     #1a6e40;
+  --green-dim: #eaf4ee;
+
+  /* Shape */
+  --r:   8px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+
+  /* Shadow */
+  --sh-sm: 0 1px 2px rgba(26,24,18,.06), 0 2px 8px rgba(26,24,18,.05);
+  --sh-md: 0 2px 8px rgba(26,24,18,.08), 0 4px 20px rgba(26,24,18,.06);
+  --sh-lg: 0 8px 32px rgba(26,24,18,.12), 0 2px 8px rgba(26,24,18,.08);
+
+  /* Easing */
+  --ease: cubic-bezier(0.32,0.72,0,1);
+}
+
+/* ── RESET ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family: 'Jost', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── TYPOGRAPHY ──────────────────────────────────── */
+.serif { font-family: 'Cormorant Garamond', serif; }
+h1, h2, h3, h4 { font-family: 'Cormorant Garamond', serif; font-weight: 600; line-height: 1.15; letter-spacing: -.015em; }
+
+/* ── SCROLLBAR ───────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+
+/* ═══════════════════════════════════════════════════
+   SCREENS
+═══════════════════════════════════════════════════ */
+.screen { position:fixed; inset:0; display:none; flex-direction:column; background:var(--bg); z-index:10; overflow:hidden; }
+.screen.active { display:flex; }
+
+@keyframes slideInR { from { transform:translateX(100%); opacity:0 } to { transform:translateX(0); opacity:1 } }
+@keyframes slideInL { from { transform:translateX(-40%); opacity:0 } to { transform:translateX(0); opacity:1 } }
+@keyframes riseUp   { from { transform:translateY(20px); opacity:0 } to { transform:translateY(0); opacity:1 } }
+@keyframes fadeIn   { from { opacity:0; transform:scale(.97) } to { opacity:1; transform:scale(1) } }
+
+.anim-r { animation: slideInR .3s var(--ease); }
+.anim-l { animation: slideInL .3s var(--ease); }
+.anim-u { animation: riseUp .28s var(--ease); }
+.anim-z { animation: fadeIn .28s var(--ease); }
+
+/* ═══════════════════════════════════════════════════
+   TOP BAR — Contextual, per-screen headers
+═══════════════════════════════════════════════════ */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+}
+/* Large editorial title (main screens) */
+.topbar-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--ink);
+  flex: 1;
+  line-height: 1;
+}
+/* Sub-label beneath title */
+.topbar-sub {
+  font-family: 'Jost', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--gold);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+/* Chat room title (smaller, with contact name) */
+.topbar-contact {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.1;
+}
+
+/* ═══════════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: 'Jost', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background .15s, transform .12s var(--ease), box-shadow .15s;
+}
+.btn:hover  { background: var(--surface-2); box-shadow: var(--sh-sm); }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-primary:hover { background: #2a2820; }
+.btn-gold   { background: var(--gold); color: #fff; border-color: var(--gold); }
+.btn-gold:hover { background: #7e5c20; }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { background: #9c2a22; }
+.btn-ghost  { background: transparent; border-color: transparent; }
+.btn-ghost:hover { background: var(--surface-2); box-shadow: none; }
+.btn-icon   { width: 36px; height: 36px; padding: 0; border-radius: var(--r-md); }
+.btn-sm     { padding: 6px 12px; font-size: 12px; border-radius: var(--r); }
+.btn-xs     { padding: 4px 8px; font-size: 11px; border-radius: var(--r); }
+
+/* ═══════════════════════════════════════════════════
+   INPUTS
+═══════════════════════════════════════════════════ */
+.input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: 'Jost', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-dim); }
+.input::placeholder { color: var(--ink-4); }
+textarea.input { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+/* ═══════════════════════════════════════════════════
+   OVERLAY & MODAL
+═══════════════════════════════════════════════════ */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(26,24,18,.5);
+  backdrop-filter: blur(6px);
+  z-index: 500;
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.overlay.show { display: flex; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--sh-lg);
+  padding: 26px;
+  width: 100%; max-width: 390px;
+  position: relative;
+  animation: fadeIn .25s var(--ease);
+  max-height: 87vh; overflow-y: auto;
+}
+.modal h2 { font-size: 22px; margin-bottom: 18px; }
+.modal-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--ink-3);
+  transition: background .15s;
+}
+.modal-close:hover { background: var(--surface-3); }
+
+/* ── BOTTOM SHEET ────────────────────────────────── */
+.bsheet {
+  position: fixed; bottom: -110%; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 22px 22px 0 0;
+  padding: 16px 16px 30px;
+  z-index: 510;
+  transition: bottom .38s var(--ease);
+  box-shadow: 0 -8px 40px rgba(26,24,18,.12);
+}
+.bsheet.open { bottom: 0; }
+.bsheet-handle { width: 36px; height: 4px; background: var(--border-2); border-radius: 2px; margin: 0 auto 18px; }
+
+/* ═══════════════════════════════════════════════════
+   CARD & LIST
+═══════════════════════════════════════════════════ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+}
+.li {
+  display: flex; align-items: center; gap: 13px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: background .14s, transform .12s var(--ease);
+}
+.li:hover  { background: var(--surface-2); transform: translateX(1px); }
+.li:active { transform: scale(.99); }
+
+/* ═══════════════════════════════════════════════════
+   AVATAR
+═══════════════════════════════════════════════════ */
+.av {
+  border-radius: var(--r-md);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  border: 1px solid var(--border);
+}
+.av img { width:100%; height:100%; object-fit:cover; display:block; }
+.online-dot {
+  width: 9px; height: 9px;
+  background: var(--green);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  position: absolute; bottom: -1px; right: -1px;
+}
+
+/* ── BADGE ───────────────────────────────────────── */
+.badge {
+  background: var(--red); color: #fff;
+  border-radius: 999px;
+  min-width: 18px; height: 18px;
+  font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 4px;
+}
+
+/* ═══════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════ */
+#toast {
+  position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--bg);
+  padding: 10px 20px; border-radius: var(--r-lg);
+  font-size: 13px; font-weight: 500;
+  z-index: 1000; display: none;
+  box-shadow: var(--sh-lg);
+  max-width: 88vw; text-align: center;
+  animation: riseUp .2s var(--ease);
+}
+
+/* ═══════════════════════════════════════════════════
+   TAB BAR
+═══════════════════════════════════════════════════ */
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 62px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: none; justify-content: space-around; align-items: center;
+  z-index: 50;
+  padding: 0 10px;
+}
+.tab {
+  flex: 1; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; cursor: pointer;
+  border-radius: var(--r-md);
+  transition: background .14s;
+  padding: 4px;
+}
+.tab:hover { background: var(--surface-2); }
+.tab span { font-size: 10px; font-weight: 500; color: var(--ink-3); letter-spacing: .03em; }
+.tab.act .tab-icon path,
+.tab.act .tab-icon circle,
+.tab.act .tab-icon polyline { stroke: var(--gold); }
+.tab.act span { color: var(--gold); font-weight: 600; }
+
+/* ── SCROLL LIST ─────────────────────────────────── */
+.slist { flex:1; overflow-y:auto; padding:12px 14px 72px; display:flex; flex-direction:column; gap:8px; }
+
+/* ═══════════════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════════════ */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm);
+}
+.setting-label { font-weight: 500; font-size: 14px; }
+.setting-sub   { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+
+/* ── TOGGLE ──────────────────────────────────────── */
+.toggle {
+  width: 46px; height: 26px;
+  background: var(--border-2);
+  border-radius: 13px;
+  position: relative; cursor: pointer;
+  border: 1px solid var(--border);
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--gold); border-color: var(--gold); }
+.toggle::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px;
+  background: #fff; border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15);
+  transition: left .2s var(--ease);
+}
+.toggle.on::after { left: 22px; }
+
+/* ═══════════════════════════════════════════════════
+   MESSAGES
+═══════════════════════════════════════════════════ */
+.bubble {
+  padding: 10px 13px;
+  border-radius: var(--r-lg);
+  margin: 2px 0;
+  max-width: 80%;
+  border: 1px solid transparent;
+  font-size: 14px; line-height: 1.55;
+  position: relative;
+  animation: popBubble .2s var(--ease);
+  cursor: pointer;
+}
+@keyframes popBubble { from { transform:scale(.85) translateY(8px); opacity:0 } to { transform:scale(1); opacity:1 } }
+
+.bubble-me {
+  align-self: flex-end;
+  background: var(--ink); color: var(--bg);
+  border-radius: var(--r-lg) var(--r-lg) 4px var(--r-lg);
+}
+.bubble-me.read { background: var(--blue); }
+.bubble-them {
+  align-self: flex-start;
+  background: var(--surface);
+  border-color: var(--border);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 4px;
+}
+.btime {
+  font-size: 10px; opacity: .5; margin-top: 5px;
+  display: flex; align-items: center; justify-content: flex-end; gap: 3px;
+}
+.bubble-them .btime { justify-content: flex-start; }
+
+.reply-preview {
+  background: rgba(255,255,255,.1);
+  border-left: 2px solid rgba(255,255,255,.35);
+  border-radius: 4px;
+  padding: 5px 8px; margin-bottom: 6px;
+  font-size: 11px; opacity: .75;
+}
+.bubble-them .reply-preview { background: var(--surface-2); border-left-color: var(--gold); }
+.edited-tag { font-size: 9px; opacity: .4; margin-left: 4px; font-style: italic; }
+
+/* ── DATE DIVIDER ────────────────────────────────── */
+.date-div {
+  text-align: center;
+  font-size: 11px; font-weight: 500; color: var(--ink-3);
+  padding: 12px 0 4px;
+  letter-spacing: .04em;
+}
+
+/* ── TYPING INDICATOR ────────────────────────────── */
+.tdots { display:flex; gap:3px; align-items:center; padding:10px 13px; }
+.tdots span { width:5px; height:5px; background:var(--ink-3); border-radius:50%; animation:tBounce .9s infinite; }
+.tdots span:nth-child(2) { animation-delay:.15s; }
+.tdots span:nth-child(3) { animation-delay:.3s; }
+@keyframes tBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+
+/* ── CONTEXT MENU ────────────────────────────────── */
+.ctx-menu {
+  position: fixed;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--sh-lg);
+  z-index: 800; min-width: 180px; overflow: hidden;
+  animation: fadeIn .15s var(--ease);
+}
+.ctx-item {
+  padding: 11px 16px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border-bottom: 1px solid var(--surface-2);
+  transition: background .1s;
+  display: flex; align-items: center; gap: 9px;
+}
+.ctx-item:last-child { border-bottom: none; }
+.ctx-item:hover { background: var(--surface-2); }
+.ctx-item.danger { color: var(--red); }
+
+/* ── VOICE BUBBLE ────────────────────────────────── */
+.vbubble { display:flex; flex-direction:column; gap:6px; min-width:200px; }
+.vplayer { display:flex; align-items:center; gap:8px; }
+.vplay {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--surface-2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; transition: background .15s;
+}
+.bubble-me .vplay { background:rgba(255,255,255,.15); border-color:rgba(255,255,255,.2); }
+.vplay:hover { background: var(--surface-3); }
+.vwave { flex:1; height:24px; display:flex; align-items:center; gap:2px; }
+.vbar { width:2px; border-radius:1px; background:var(--ink-3); opacity:.4; transition:opacity .1s; }
+.bubble-me .vbar { background:rgba(255,255,255,.5); }
+.vbar.on { opacity:1; }
+.vdur { font-size:11px; opacity:.6; flex-shrink:0; }
+.vtrans { font-size:11px; font-style:italic; opacity:.65; border-top:1px solid rgba(0,0,0,.08); padding-top:5px; margin-top:2px; line-height:1.4; }
+.bubble-me .vtrans { border-top-color:rgba(255,255,255,.1); }
+
+/* ── PING ────────────────────────────────────────── */
+.ping-bubble { color:var(--red); font-weight:700; }
+@keyframes pingShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-4px)} 40%{transform:translateX(4px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(3px)} }
+.ping-active { animation: pingShake .4s ease; }
+
+/* ── AI BADGE ────────────────────────────────────── */
+.ai-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--gold-dim);
+  border: 1px solid var(--gold-lt);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 10px; font-weight: 600; color: var(--gold);
+  letter-spacing: .03em;
+}
+
+/* ═══════════════════════════════════════════════════
+   TONE WARNING
+═══════════════════════════════════════════════════ */
+@keyframes warnSlide { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+#tone-warn {
+  position: fixed; bottom: 72px; left: 12px; right: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-xl); box-shadow: var(--sh-lg);
+  padding: 16px; z-index: 700; display: none;
+}
+#tone-warn.show { display: block; animation: warnSlide .28s var(--ease); }
+.tone-bar { height: 4px; border-radius: 2px; background: var(--surface-3); margin-top: 8px; overflow: hidden; }
+.tone-fill { height: 100%; border-radius: 2px; transition: width .4s var(--ease); }
+
+/* ═══════════════════════════════════════════════════
+   AI PANEL (hold-to-send)
+═══════════════════════════════════════════════════ */
+@keyframes aiSlide { from{transform:translateY(60px);opacity:0} to{transform:translateY(0);opacity:1} }
+#ai-panel {
+  position: fixed; bottom: 72px; left: 12px; right: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-xl); box-shadow: var(--sh-lg);
+  padding: 16px; z-index: 600; display: none;
+}
+#ai-panel.show { display:block; animation: aiSlide .28s var(--ease); }
+
+/* ── REPLY BAR ───────────────────────────────────── */
+#reply-bar {
+  background: var(--surface-2); border-top: 1px solid var(--border);
+  padding: 8px 14px; display: none; align-items: center; gap: 10px;
+}
+#reply-bar.show { display: flex; }
+#reply-bar-text { flex:1; font-size:12px; font-weight:500; color:var(--ink-2); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+
+/* ═══════════════════════════════════════════════════
+   SUMMARY PANEL
+═══════════════════════════════════════════════════ */
+#summary-panel {
+  position: fixed; inset: 0;
+  background: rgba(26,24,18,.55); backdrop-filter: blur(6px);
+  z-index: 700; display: none; align-items: flex-end;
+}
+#summary-panel.show { display: flex; }
+.summary-box {
+  background: var(--surface); border-top: 1px solid var(--border);
+  border-radius: 22px 22px 0 0;
+  padding: 26px 18px 34px; width: 100%; max-height: 75vh; overflow-y: auto;
+  animation: riseUp .3s var(--ease);
+  box-shadow: 0 -8px 40px rgba(26,24,18,.15);
+}
+
+/* ═══════════════════════════════════════════════════
+   LOCK SCREEN
+═══════════════════════════════════════════════════ */
+#lock-screen {
+  position: fixed; inset: 0; background: var(--ink);
+  z-index: 950; display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px;
+}
+#lock-screen.show { display: flex; }
+.lock-title { color: rgba(246,243,236,.9); font-family:'Cormorant Garamond',serif; font-size: 24px; font-weight: 600; }
+.lock-sub   { color: rgba(246,243,236,.4); font-size: 12px; }
+.pin-cell {
+  width: 46px; height: 54px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: var(--r-lg);
+  background: rgba(255,255,255,.07);
+  color: #fff; text-align: center;
+  font-size: 22px; font-weight: 500;
+  outline: none;
+  transition: border-color .15s;
+  font-family: 'Jost', sans-serif;
+}
+.pin-cell:focus { border-color: var(--gold-lt); }
+
+/* ── QR SCAN ─────────────────────────────────────── */
+#scan-ov {
+  position: fixed; inset: 0; background: #111;
+  z-index: 600; display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px;
+}
+#scan-ov.show { display: flex; }
+#scan-vid { width:100%; max-width:360px; border-radius: var(--r-xl); border:1px solid var(--gold); display:block; }
+
+/* ═══════════════════════════════════════════════════
+   AVATAR GRID
+═══════════════════════════════════════════════════ */
+.av-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+.avo {
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden; cursor: pointer;
+  aspect-ratio: 1;
+  transition: border-color .15s, transform .12s var(--ease);
+}
+.avo:hover { border-color: var(--gold-lt); transform: scale(1.04); }
+.avo.sel   { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-dim); }
+.avo img   { width:100%; display:block; }
+
+/* ── DIVIDER ─────────────────────────────────────── */
+.or-div {
+  display: flex; align-items: center; gap: 10px;
+  margin: 12px 0; color: var(--ink-3); font-size: 12px;
+}
+.or-div::before, .or-div::after { content:''; flex:1; height:1px; background: var(--border); }
+
+/* ── CHIPS ───────────────────────────────────────── */
+.chips { display:flex; gap:6px; overflow-x:auto; padding:0 0 2px; flex-shrink:0; }
+.chips::-webkit-scrollbar { display:none; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 13px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  color: var(--ink-2);
+  transition: background .14s, border-color .14s;
+}
+.chip:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold); }
+
+/* ── MOOD GRID ───────────────────────────────────── */
+.mood-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin-bottom:14px; }
+.mood-item {
+  font-size: 28px; text-align: center; padding: 8px;
+  border: 1px solid var(--border); border-radius: var(--r);
+  cursor: pointer;
+  transition: transform .12s var(--ease), background .14s;
+}
+.mood-item:hover { transform: scale(1.15); background: var(--surface-2); }
+
+/* ── PERSONALITY CARDS ───────────────────────────── */
+.personality-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.p-card {
+  padding: 14px 12px; border: 1px solid var(--border);
+  border-radius: var(--r-lg); cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.p-card:hover { background: var(--surface-2); }
+.p-card.sel   { border-color: var(--gold); background: var(--gold-dim); }
+.p-card-icon  { font-size: 22px; margin-bottom: 6px; }
+.p-card-name  { font-weight: 600; font-size: 13px; }
+.p-card-desc  { font-size: 11px; color: var(--ink-3); margin-top: 3px; line-height: 1.35; }
+
+/* ── FRIENDSHIP BAR ──────────────────────────────── */
+.friendship-bar { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; margin-top: 4px; }
+.friendship-fill { height: 100%; border-radius: 2px; transition: width .6s var(--ease); }
+
+/* ═══════════════════════════════════════════════════
+   AI SCREEN
+═══════════════════════════════════════════════════ */
+#ai-screen {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  z-index: 300; display: none; flex-direction: column;
+}
+#ai-screen.show { display: flex; }
+
+/* AI screen topbar override */
+#ai-screen .topbar { padding-bottom: 14px; }
+#ai-screen .topbar-title { font-size: 28px; }
+
+.ai-msg {
+  padding: 11px 14px; border-radius: var(--r-lg);
+  margin: 2px 0; max-width: 86%;
+  font-size: 14px; line-height: 1.55;
+  animation: popBubble .2s var(--ease);
+  white-space: pre-wrap;
+}
+.ai-user {
+  align-self: flex-end;
+  background: var(--ink); color: var(--bg);
+  border-radius: var(--r-lg) var(--r-lg) 4px var(--r-lg);
+}
+.ai-bot {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--gold);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 4px;
+}
+
+/* AI thinking indicator */
+.ai-thinking {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; align-self: flex-start;
+  color: var(--ink-3); font-size: 12px; font-weight: 500;
+}
+.ai-thinking-dots { display:flex; gap:3px; align-items:center; }
+.ai-thinking-dots span {
+  width: 5px; height: 5px;
+  background: var(--gold); border-radius: 50%;
+  animation: tBounce .9s infinite;
+}
+.ai-thinking-dots span:nth-child(2) { animation-delay:.15s; }
+.ai-thinking-dots span:nth-child(3) { animation-delay:.3s; }
+
+/* ── AI IN-CHAT BUBBLE ───────────────────────────── */
+.ai-chat-bubble {
+  align-self: flex-start;
+  background: var(--gold-mist);
+  border: 1px solid var(--gold-lt);
+  border-left: 2px solid var(--gold);
+  border-radius: var(--r-lg) var(--r-lg) var(--r-lg) 4px;
+  padding: 10px 13px; max-width: 86%;
+  font-size: 14px; line-height: 1.55;
+  white-space: pre-wrap;
+  animation: popBubble .2s var(--ease);
+}
+
+/* ═══════════════════════════════════════════════════
+   CALL SCREEN
+═══════════════════════════════════════════════════ */
+#scr-call {
+  background: linear-gradient(160deg, #1a1812, #2a2418);
+  align-items: center; justify-content: center;
+  z-index: 200;
+}
+.call-av {
+  width: 90px; height: 90px;
+  border-radius: 26px;
+  border: 2px solid rgba(255,255,255,.12);
+  overflow: hidden;
+}
+.call-av img { width:100%; height:100%; object-fit:cover; }
+.call-ring {
+  position: absolute; top:50%; left:50%;
+  transform: translate(-50%,-50%);
+  width: 90px; height: 90px;
+  border-radius: 26px;
+  border: 1px solid rgba(154,112,40,.3);
+  animation: ringPulse 2s ease-out infinite;
+}
+.call-ring2 { animation-delay:.7s; }
+@keyframes ringPulse { 0%{transform:translate(-50%,-50%) scale(1);opacity:.5} 100%{transform:translate(-50%,-50%) scale(2);opacity:0} }
+.call-name  { color:#fff; font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; margin-top:18px; }
+.call-stat  { color:rgba(246,243,236,.45); font-size:13px; margin-top:4px; }
+.call-timer { color:var(--gold-lt); font-size:22px; font-weight:500; display:none; margin-top:4px; letter-spacing:2px; }
+.call-btns  { display:flex; gap:22px; align-items:center; margin-top:38px; }
+.cbtn {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.07);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s;
+}
+.cbtn:hover { background: rgba(255,255,255,.14); }
+.cbtn-end    { background:var(--red)!important; border-color:var(--red)!important; width:66px; height:66px; }
+.cbtn-accept { background:var(--green)!important; border-color:var(--green)!important; width:66px; height:66px; }
+.cbtn-muted  { background:rgba(184,50,40,.3)!important; }
+
+/* ═══════════════════════════════════════════════════
+   DND OVERLAY
+═══════════════════════════════════════════════════ */
+#hush-ov {
+  position: fixed; inset: 0;
+  background: rgba(26,24,18,.92); backdrop-filter: blur(16px);
+  z-index: 900; display: none;
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 22px;
+}
+#hush-ov.show { display: flex; }
+
+/* ═══════════════════════════════════════════════════
+   INTRO SCREEN
+═══════════════════════════════════════════════════ */
+#scr-intro { background: var(--ink); align-items: center; justify-content: center; }
+.intro-logo {
+  width: 84px; height: 84px;
+  background: var(--gold-dim);
+  border: 1px solid var(--gold);
+  border-radius: 24px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 28px;
+  animation: fadeIn .6s var(--ease);
+}
+
+/* ─────────────── SECTION HEADER ────────────────── */
+.section-header {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 8px 2px 4px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-header::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ─────────────── PIN ROW ────────────────────────── */
+.pin-row { display:flex; gap:8px; justify-content:center; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- ── MODAL ── -->
+<div id="modal" class="overlay">
+  <div class="modal" id="mbox">
+    <div class="modal-close" onclick="CM()">✕</div>
+    <h2 class="serif" id="mtitle"></h2>
+    <div id="mbody"></div>
+  </div>
+</div>
+
+<!-- ── MEDIA SHEET ── -->
+<div id="msheet" class="bsheet">
+  <div class="bsheet-handle"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+    <div class="btn" onclick="triggerFile()">📷 Foto</div>
+    <div class="btn" onclick="sendLoc()">📍 Lokasi</div>
+    <div class="btn btn-gold" onclick="showAiInChat();CS()">✦ Tambahkan AI</div>
+    <div class="btn" onclick="showReminderCreate();CS()">⏰ Reminder</div>
+    <div class="btn btn-danger" style="grid-column:1/-1;" onclick="CS()">Tutup</div>
+  </div>
+</div>
+
+<!-- ── QR SCANNER ── -->
+<div id="scan-ov">
+  <div style="position:relative;width:100%;max-width:360px;">
+    <video id="scan-vid" autoplay playsinline muted></video>
+    <canvas id="scan-cvs" style="display:none;"></canvas>
+  </div>
+  <p style="color:var(--gold-lt);font-size:13px;font-weight:500;">Arahkan ke QR Code PIN</p>
+  <div class="btn btn-danger" onclick="stopScan()">Batal</div>
+</div>
+
+<!-- ── FRIEND REQUEST ── -->
+<div id="freq-ov" class="overlay">
+  <div class="modal">
+    <h2 class="serif">Permintaan Teman</h2>
+    <div style="display:flex;align-items:center;gap:13px;margin-bottom:16px;">
+      <div id="freq-av" class="av" style="width:50px;height:50px;"></div>
+      <div>
+        <div id="freq-name" style="font-weight:600;font-size:16px;"></div>
+        <div id="freq-pin" style="font-size:11px;color:var(--gold);font-weight:500;"></div>
+      </div>
+    </div>
+    <p id="freq-txt" style="font-size:13px;color:var(--ink-2);margin-bottom:18px;"></p>
+    <div style="display:flex;gap:8px;">
+      <div class="btn btn-primary" style="flex:1;" onclick="acceptFriend()">Terima</div>
+      <div class="btn btn-danger" style="flex:1;" onclick="rejectFriend()">Tolak</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── INCOMING CALL ── -->
+<div id="inc-call-ov" class="overlay" style="z-index:400;background:rgba(26,24,18,.7);">
+  <div style="text-align:center;padding:32px;width:100%;max-width:300px;">
+    <div id="inc-av" class="av" style="width:74px;height:74px;margin:0 auto 16px;"></div>
+    <p style="color:rgba(246,243,236,.45);font-size:12px;margin-bottom:5px;letter-spacing:.04em;text-transform:uppercase;">Panggilan masuk</p>
+    <h2 id="inc-name" style="color:#fff;font-size:26px;margin-bottom:28px;"></h2>
+    <div style="display:flex;justify-content:center;gap:26px;">
+      <div class="cbtn" style="background:var(--red);border-color:var(--red);width:66px;height:66px;" onclick="rejectCall()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.12-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+      </div>
+      <div class="cbtn cbtn-accept" onclick="acceptCall()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DND OVERLAY ── -->
+<div id="hush-ov">
+  <div style="text-align:center;">
+    <span style="font-size:56px;display:block;margin-bottom:14px;">🤫</span>
+    <div style="color:rgba(246,243,236,.9);font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;margin-bottom:6px;" id="hush-name"></div>
+    <div style="color:rgba(246,243,236,.4);font-size:13px;">sedang tidak ingin diganggu</div>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <div class="btn btn-gold" onclick="hushForce()">Hubungi Tetap</div>
+    <div class="btn btn-ghost" style="color:rgba(246,243,236,.55);border-color:rgba(255,255,255,.12);" onclick="document.getElementById('hush-ov').classList.remove('show')">Tutup</div>
+  </div>
+</div>
+
+<!-- ── TONE WARNING ── -->
+<div id="tone-warn">
+  <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
+    <div style="font-size:20px;flex-shrink:0;">⚠️</div>
+    <div style="flex:1;">
+      <div style="font-weight:600;font-size:14px;margin-bottom:3px;" id="tw-title">Pesan mungkin menyinggung</div>
+      <div style="font-size:12px;color:var(--ink-2);" id="tw-body"></div>
+    </div>
+    <div style="font-size:12px;color:var(--ink-3);font-weight:600;flex-shrink:0;" id="tw-cd">10</div>
+  </div>
+  <div class="tone-bar"><div class="tone-fill" id="tone-fill" style="width:0%;background:var(--red);"></div></div>
+  <div style="margin-top:10px;font-size:12px;color:var(--gold);font-style:italic;" id="tw-suggest"></div>
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+    <div class="btn btn-sm btn-primary" onclick="sendAfterWarn()">Kirim Tetap</div>
+    <div class="btn btn-sm" onclick="cancelWarn()">Edit Dulu</div>
+    <div class="btn btn-sm" onclick="delaySend(30)">⏱ 30 dtk</div>
+    <div class="btn btn-sm" onclick="delaySend(300)">⏱ 5 mnt</div>
+  </div>
+</div>
+
+<!-- ── REPLY BAR ── -->
+<div id="reply-bar">
+  <div style="flex-shrink:0;color:var(--gold);font-size:15px;">↩</div>
+  <div id="reply-bar-text">Membalas…</div>
+  <div onclick="clearReply()" style="cursor:pointer;color:var(--ink-3);font-size:16px;">✕</div>
+</div>
+
+<!-- ── AI PANEL ── -->
+<div id="ai-panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="ai-badge">✦ Faiz AI</span>
+      <span style="font-weight:500;font-size:13px;color:var(--ink-2);" id="ai-tone-label"></span>
+    </div>
+    <div onclick="closeAiPanel()" style="cursor:pointer;color:var(--ink-3);font-size:16px;">✕</div>
+  </div>
+  <div style="font-size:13px;color:var(--ink-2);margin-bottom:12px;font-style:italic;line-height:1.5;" id="ai-suggestion"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <div class="btn btn-sm btn-primary" onclick="sendDirect()">Kirim Langsung</div>
+    <div class="btn btn-sm btn-gold" onclick="showAiRewrite()">✦ Tulis Ulang</div>
+    <div class="btn btn-sm" onclick="delaySend(60)">⏱ Tunda 1 mnt</div>
+    <div class="btn btn-sm btn-ghost" onclick="closeAiPanel()">Edit</div>
+  </div>
+</div>
+
+<!-- ── SUMMARY PANEL ── -->
+<div id="summary-panel">
+  <div class="summary-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <span class="ai-badge">✦ Faiz AI</span>
+        <span class="serif" style="font-size:20px;font-weight:600;">Ringkasan</span>
+      </div>
+      <div onclick="document.getElementById('summary-panel').classList.remove('show')" style="cursor:pointer;color:var(--ink-3);">✕</div>
+    </div>
+    <div id="summary-content"></div>
+  </div>
+</div>
+
+<!-- ── LOCK SCREEN ── -->
+<div id="lock-screen">
+  <div style="font-size:42px;margin-bottom:18px;opacity:.5;">🔒</div>
+  <div class="lock-title" id="lock-chat-name"></div>
+  <div class="lock-sub">Masukkan PIN kunci chat</div>
+  <div class="pin-row" id="lock-pgrid"></div>
+  <div class="btn btn-gold" onclick="submitLock()">Buka</div>
+  <div class="btn btn-ghost" style="color:rgba(246,243,236,.38);" onclick="document.getElementById('lock-screen').classList.remove('show')">Batal</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     AI ASSISTANT SCREEN
+══════════════════════════════════════════════════ -->
+<div id="ai-screen">
+  <div class="topbar" style="background:var(--surface);">
+    <div class="btn btn-icon btn-ghost" onclick="closeAiScreen()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div class="av" style="width:38px;height:38px;background:var(--gold-dim);border-color:var(--gold);flex-shrink:0;">
+      <span style="font-size:18px;line-height:1;">✦</span>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div class="topbar-title" style="font-size:22px;">Faiz Assistant</div>
+      <div id="ai-personality-label" class="topbar-sub"></div>
+    </div>
+    <div class="btn btn-xs" onclick="showPersonalityPicker()" style="color:var(--gold);border-color:var(--gold-lt);background:var(--gold-dim);">Kepribadian</div>
+  </div>
+
+  <!-- Quick chips -->
+  <div style="padding:10px 14px 0;border-bottom:1px solid var(--border);background:var(--surface);">
+    <div class="chips" style="padding-bottom:10px;">
+      <div class="chip" onclick="aiQuick('Berikan tips memulai percakapan yang baik dengan orang baru')">💬 Mulai chat</div>
+      <div class="chip" onclick="showToneTuner()">✍️ Ubah nada</div>
+      <div class="chip" onclick="aiQuick('Apa saja tips komunikasi yang baik dan efektif dalam kehidupan sehari-hari?')">💡 Tips komunikasi</div>
+      <div class="chip" onclick="aiQuick('Apa saja yang bisa kamu bantu untuk saya?')">✦ Kemampuan</div>
+    </div>
+  </div>
+
+  <div id="ai-chat-box" style="flex:1;overflow-y:auto;padding:16px 14px 10px;display:flex;flex-direction:column;gap:6px;"></div>
+
+  <div style="padding:10px 12px 20px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;">
+    <input type="text" id="ai-in" class="input"
+      placeholder="Tanya Faiz Assistant…"
+      style="flex:1;padding:10px 13px;"
+      onkeydown="if(event.key==='Enter')sendAiMsg()">
+    <div class="btn btn-gold btn-icon" onclick="sendAiMsg()" style="flex-shrink:0;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SCREENS
+══════════════════════════════════════════════════ -->
+
+<!-- INTRO -->
+<div id="scr-intro" class="screen active">
+  <div style="text-align:center;padding:52px 30px 44px;">
+    <div class="intro-logo">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </div>
+    <h1 style="color:rgba(246,243,236,.92);font-size:54px;margin:0 0 8px;font-weight:300;letter-spacing:-.03em;">Faiz</h1>
+    <p style="color:var(--gold-lt);font-family:'Jost',sans-serif;font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;margin:0 0 8px;">Messenger</p>
+    <p style="color:rgba(246,243,236,.25);font-size:12px;margin:0 0 52px;letter-spacing:.04em;">AI-Powered · Personal ID</p>
+    <div id="auto-msg" style="color:var(--gold-lt);font-size:13px;margin-bottom:16px;display:none;">Masuk otomatis…</div>
+    <div id="login-btns" style="display:flex;flex-direction:column;gap:10px;">
+      <div class="btn btn-gold" style="width:100%;padding:14px;font-size:14px;" onclick="showReg()">Buat Akun Baru</div>
+      <div class="btn" style="width:100%;padding:14px;font-size:14px;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12);color:rgba(246,243,236,.75);" onclick="showLogin()">Masuk</div>
+    </div>
+  </div>
+</div>
+
+<!-- CHATS -->
+<div id="scr-main" class="screen">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="main-screen-title">Pesan</div>
+      <div class="topbar-sub" id="main-pin"></div>
+    </div>
+    <div style="flex:1;"></div>
+    <div id="main-mood" style="font-size:18px;"></div>
+    <div class="btn btn-icon btn-ghost" onclick="openAiScreen()" title="Faiz Assistant">
+      <span class="ai-badge">✦</span>
+    </div>
+    <div style="position:relative;cursor:pointer;" onclick="go('scr-prof','f')">
+      <div id="main-av" class="av" style="width:34px;height:34px;"></div>
+      <div id="dnd-badge" style="position:absolute;bottom:-3px;right:-3px;font-size:9px;display:none;">🔕</div>
+    </div>
+  </div>
+  <div id="chat-list" class="slist"></div>
+</div>
+
+<!-- FRIENDS -->
+<div id="scr-friends" class="screen">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">Teman</div>
+      <div class="topbar-sub" id="friends-count-label"></div>
+    </div>
+    <div style="flex:1;"></div>
+    <div class="btn btn-sm btn-primary" onclick="showAddFriend()">+ Tambah</div>
+  </div>
+  <div id="friend-list" class="slist"></div>
+</div>
+
+<!-- PROFILE -->
+<div id="scr-prof" class="screen">
+  <div class="topbar">
+    <div class="btn btn-icon btn-ghost" onclick="goBack()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div>
+      <div class="topbar-title">Profil</div>
+    </div>
+    <div style="flex:1;"></div>
+    <div class="btn btn-icon btn-ghost" onclick="go('scr-settings','r')">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </div>
+  </div>
+  <div class="slist" style="align-items:center;">
+    <div class="card" style="padding:26px;text-align:center;width:100%;max-width:340px;">
+      <div style="position:relative;width:84px;margin:0 auto 16px;">
+        <div id="prof-av" class="av" style="width:84px;height:84px;cursor:pointer;" onclick="document.getElementById('f-av').click()"></div>
+        <div id="prof-mood-badge" style="position:absolute;bottom:-5px;right:-5px;font-size:20px;"></div>
+      </div>
+      <h2 id="prof-name" style="font-size:26px;margin-bottom:5px;"></h2>
+      <p id="prof-pin" style="color:var(--gold);font-size:12px;font-weight:500;letter-spacing:.04em;margin-bottom:18px;"></p>
+      <div id="prof-qr" style="display:flex;justify-content:center;margin:0 auto 12px;"></div>
+      <p style="font-size:11px;color:var(--ink-3);margin-bottom:18px;">Ketuk foto untuk ganti</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <div class="btn btn-sm" onclick="showEditProfile()">✏️ Edit</div>
+        <div class="btn btn-sm" onclick="showMoodPicker()">Mood</div>
+        <div class="btn btn-sm btn-gold" onclick="showPersonalityPicker()">✦ AI</div>
+        <div class="btn btn-sm btn-danger" onclick="doLogout()">Keluar</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="scr-settings" class="screen">
+  <div class="topbar">
+    <div class="btn btn-icon btn-ghost" onclick="goBack()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div>
+      <div class="topbar-title">Pengaturan</div>
+      <div class="topbar-sub">Privasi &amp; Preferensi</div>
+    </div>
+  </div>
+  <div class="slist">
+    <div class="section-header">Privasi</div>
+    <div class="setting-row">
+      <div><div class="setting-label">Sembunyikan Status Online</div><div class="setting-sub">Orang lain tidak melihat kamu online</div></div>
+      <div class="toggle" id="tog-online" onclick="toggleSetting('hide_online')"></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Jangan Ganggu</div><div class="setting-sub">Pengirim melihat status DND</div></div>
+      <div class="toggle" id="tog-dnd" onclick="toggleSetting('dnd')"></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Baca Diam</div><div class="setting-sub">Baca tanpa tanda baca terbaca</div></div>
+      <div class="toggle" id="tog-stealth" onclick="toggleSetting('stealth_read')"></div>
+    </div>
+    <div class="section-header" style="margin-top:8px;">Keamanan</div>
+    <div class="setting-row" style="cursor:pointer;" onclick="showAutoDeleteSetting()">
+      <div><div class="setting-label">Auto-Delete Pesan</div><div class="setting-sub" id="ad-sub">Nonaktif</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+    <div class="setting-row" style="cursor:pointer;" onclick="showLockSettings()">
+      <div><div class="setting-label">Kunci Chat</div><div class="setting-sub">Lindungi chat dengan PIN</div></div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT ROOM -->
+<div id="scr-chat" class="screen" style="padding:0;">
+  <div class="topbar" style="padding:10px 12px 10px;">
+    <div class="btn btn-icon btn-ghost" onclick="goBack()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+    <div style="position:relative;flex-shrink:0;">
+      <div id="chat-av" class="av" style="width:38px;height:38px;"></div>
+      <div id="chat-online-dot" class="online-dot" style="display:none;"></div>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div id="chat-name" class="topbar-contact"></div>
+      <div id="chp" style="font-size:10px;color:var(--gold);font-weight:500;letter-spacing:.04em;"></div>
+      <div id="chat-typing" class="tdots" style="display:none;"><span></span><span></span><span></span></div>
+    </div>
+    <div class="btn btn-icon btn-ghost" title="Ringkas AI" onclick="showSummary()">
+      <span class="ai-badge" style="padding:3px 6px;font-size:9px;">✦</span>
+    </div>
+    <div class="btn btn-icon btn-ghost" onclick="startCall()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.53 2 2 0 0 1 3.58 1.37h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l.81-.81a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    </div>
+    <div class="btn btn-icon btn-ghost" onclick="showChatMenu()" style="font-size:18px;font-weight:700;letter-spacing:1px;line-height:1;">⋯</div>
+  </div>
+
+  <div id="reply-bar"></div>
+
+  <div id="chat-box" style="flex:1;overflow-y:auto;padding:12px 14px 8px;display:flex;flex-direction:column;gap:2px;"></div>
+
+  <div style="padding:8px 12px 16px;background:var(--surface);border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;">
+    <div class="btn btn-icon btn-ghost" onclick="OS()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </div>
+    <input type="text" id="msg-in" class="input"
+      placeholder="Tulis pesan…"
+      style="flex:1;padding:10px 13px;"
+      oninput="handleTyping()"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey)handleSendClick()">
+    <div class="btn btn-icon btn-ghost" onclick="sendPing()" title="Ping!" style="color:var(--red);font-size:16px;font-weight:700;">!</div>
+    <div class="btn btn-icon" style="background:var(--surface-2);" id="vbtn"
+      ontouchstart="startRec(event)" ontouchend="stopRec(event)"
+      onmousedown="startRec(event)" onmouseup="stopRec(event)" onmouseleave="stopRec(event)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+    </div>
+    <div class="btn btn-icon btn-primary" id="send-btn"
+      onclick="handleSendClick()"
+      onmousedown="startSendHold()" onmouseup="stopSendHold()"
+      ontouchstart="startSendHold()" ontouchend="stopSendHold()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- CALL -->
+<div id="scr-call" class="screen" style="padding:20px 20px 42px;">
+  <div style="position:relative;display:flex;justify-content:center;margin-bottom:18px;margin-top:44px;">
+    <div class="call-ring"></div><div class="call-ring call-ring2"></div>
+    <div class="call-av" id="call-av"></div>
+  </div>
+  <div class="call-name" id="call-name" style="text-align:center;"></div>
+  <div class="call-stat" id="call-stat" style="text-align:center;">Menghubungi…</div>
+  <div class="call-timer" id="call-timer" style="text-align:center;"></div>
+  <div class="call-btns" style="justify-content:center;">
+    <div class="cbtn" id="btn-mute" onclick="toggleMute()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+    </div>
+    <div class="cbtn cbtn-end" onclick="endCall()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.12-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+    </div>
+    <div class="cbtn" id="btn-spk" onclick="toggleSpk()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+    </div>
+  </div>
+</div>
+
+<!-- TAB BAR -->
+<nav class="tabbar" id="navbar">
+  <div class="tab" id="t-chats" onclick="go('scr-main','u')">
+    <div style="position:relative;">
+      <svg class="tab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <div id="chat-badge" class="badge" style="position:absolute;top:-6px;right:-8px;display:none;"></div>
+    </div>
+    <span>Pesan</span>
+  </div>
+  <div class="tab" id="t-friends" onclick="go('scr-friends','u')">
+    <svg class="tab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Teman</span>
+  </div>
+  <div class="tab" id="t-prof" onclick="go('scr-prof','f')">
+    <svg class="tab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profil</span>
+  </div>
+</nav>
+
+<input type="file" id="f-hd" hidden accept="image/*" onchange="sendPhoto(this)">
+<input type="file" id="f-av" hidden accept="image/*" onchange="uploadCustomAv(this)">
+
+<script>
+const socket = io();
+let myP='', myN='', myAv='', activeP='';
+let chatData={}, friendsData={}, blocksData=new Set();
+let prevScreen='scr-main', pendingFR=null, scanStream=null;
+let mediaRec=null, audioChunks=[], isRec=false, recStart=0, recTimer=null;
+let srec=null, voiceTranscript='';
+let pc=null, localStream=null, callTimer=null, callSec=0, callPeer='';
+let isMuted=false, isSpk=false, pendingOffer=null, callEnded=false;
+const ICE={iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]};
+let settings={hide_online:false,dnd:false,stealth_read:false,auto_delete:0,mood:'',ai_personality:'friendly'};
+let onlineUsers=new Set();
+let pendingHushPeer=null;
+let sendHoldTimer=null, sendHoldFired=false;
+let pendingToneMsg='', toneCountdownIv=null;
+let replyToMsg=null;
+let lockedChats={};
+let delayTimer=null;
+let interactionCounts={};
+let aiChatHistory=[];
+let aiPersonalities={
+  friendly:     {label:'Ramah',    desc:'Hangat & akrab seperti sahabat',  icon:'😊'},
+  professional: {label:'Profesional', desc:'Formal & efisien',             icon:'💼'},
+  flirty:       {label:'Playful',  desc:'Ringan & menyenangkan',           icon:'✨'},
+  business:     {label:'Bisnis',   desc:'Ringkas & to the point',          icon:'📊'}
+};
+let aiInChatEnabled={};
+
+// ── AUTO-LOGIN ─────────────────────────────────────
+window.addEventListener('load',()=>{
+  const s=localStorage.getItem('fz_sess');
+  if(s){
+    document.getElementById('auto-msg').style.display='block';
+    document.getElementById('login-btns').style.display='none';
+    setTimeout(()=>socket.emit('auto_login',{pin:s}),400);
+  }
+});
+socket.on('auto_login_failed',()=>{
+  localStorage.removeItem('fz_sess');
+  document.getElementById('auto-msg').style.display='none';
+  document.getElementById('login-btns').style.display='flex';
+});
+
+// ── TOAST ──────────────────────────────────────────
+let _tt;
+function toast(m,dur=2600){
+  const t=document.getElementById('toast');
+  t.textContent=m; t.style.display='block';
+  clearTimeout(_tt); _tt=setTimeout(()=>t.style.display='none',dur);
+}
+
+// ── MODAL ──────────────────────────────────────────
+function SM(title,html,wide=false){
+  document.getElementById('mtitle').textContent=title;
+  document.getElementById('mbody').innerHTML=html;
+  document.getElementById('mbox').style.maxWidth=wide?'430px':'390px';
+  document.getElementById('modal').classList.add('show');
+}
+function CM(){document.getElementById('modal').classList.remove('show');}
+function OS(){document.getElementById('msheet').classList.add('open');}
+function CS(){document.getElementById('msheet').classList.remove('open');}
+
+// ── NAV ────────────────────────────────────────────
+function go(id,a='u'){
+  if(id==='scr-call'&&callEnded)return;
+  const p=document.querySelector('.screen.active');
+  if(p){prevScreen=p.id; p.classList.remove('active');}
+  const n=document.getElementById(id);
+  n.classList.add('active');
+  ['anim-r','anim-l','anim-u','anim-z'].forEach(x=>n.classList.remove(x));
+  void n.offsetWidth;
+  n.classList.add({r:'anim-r',l:'anim-l',u:'anim-u',f:'anim-z',z:'anim-z'}[a]||'anim-u');
+  const nav=['scr-main','scr-friends','scr-prof'];
+  document.getElementById('navbar').style.display=nav.includes(id)?'flex':'none';
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('act'));
+  if(id==='scr-main')   document.getElementById('t-chats').classList.add('act');
+  if(id==='scr-friends')document.getElementById('t-friends').classList.add('act');
+  if(id==='scr-prof')   document.getElementById('t-prof').classList.add('act');
+  if(id==='scr-chat'&&!settings.stealth_read)
+    socket.emit('read_all',{from:myP,to:activeP});
+}
+function goBack(){go(prevScreen,'l');}
+function setAv(id,url){const e=document.getElementById(id);if(e)e.innerHTML=`<img src="${url}" onerror="this.parentNode.style.background='var(--surface-2)'">`;}
+
+// ── REGISTER ──────────────────────────────────────
+let selAv='',regName='',regPass='';
+function showReg(){
+  const seeds=Array.from({length:8},()=>Math.random().toString(36).slice(2,7));
+  SM('Buat Akun',`
+    <input class="input" id="rg-n" placeholder="Nama Lengkap" style="margin-bottom:8px;">
+    <input class="input" id="rg-p" type="password" placeholder="Password (huruf+angka, min 6)" style="margin-bottom:8px;">
+    <input class="input" id="rg-p2" type="password" placeholder="Ulangi Password" style="margin-bottom:14px;">
+    <div class="section-header" style="margin-bottom:8px;">Pilih Avatar</div>
+    <div class="av-grid">${seeds.map(s=>`<div class="avo" onclick="selAv2(this,'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${s}')"><img src="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${s}"></div>`).join('')}</div>
+    <div class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="nextPin()">Lanjut → Pilih PIN</div>
+  `,true);
+}
+function selAv2(el,url){document.querySelectorAll('.avo').forEach(a=>a.classList.remove('sel'));el.classList.add('sel');selAv=url;}
+function nextPin(){
+  const n=document.getElementById('rg-n').value.trim();
+  const p=document.getElementById('rg-p').value, p2=document.getElementById('rg-p2').value;
+  if(!n)return toast('Masukkan nama!');
+  if(!selAv)return toast('Pilih avatar dulu!');
+  if(p.length<6)return toast('Password min 6 karakter!');
+  if(!/[a-zA-Z]/.test(p)||!/[0-9]/.test(p))return toast('Password harus huruf+angka!');
+  if(p!==p2)return toast('Password tidak cocok!');
+  regName=n; regPass=p;
+  SM('Pilih PIN Faiz ID',`
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px;margin-bottom:16px;font-size:12px;color:var(--ink-2);line-height:1.6;">
+      PIN adalah identitas unik Anda — 8 karakter, campuran huruf &amp; angka.
+    </div>
+    <div class="pin-row" id="pgrid" style="flex-wrap:wrap;justify-content:center;margin-bottom:16px;"></div>
+    <div class="btn btn-primary" style="width:100%;" onclick="doReg()">Buat Akun</div>
+  `);
+  buildPinGrid('pgrid',8,'pin-cell');
+}
+function buildPinGrid(gid,len,cls){
+  const g=document.getElementById(gid);if(!g)return;g.innerHTML='';
+  for(let i=0;i<len;i++){
+    const inp=document.createElement('input');
+    inp.className=cls; inp.maxLength=1; inp.id='pc'+i;
+    inp.style.cssText='width:46px;height:54px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--ink);text-align:center;font-size:22px;font-weight:500;outline:none;font-family:Jost,sans-serif;transition:border-color .15s;';
+    inp.addEventListener('focus',()=>inp.style.borderColor='var(--gold)');
+    inp.addEventListener('blur',()=>inp.style.borderColor='var(--border)');
+    inp.addEventListener('input',()=>{if(inp.value&&i<len-1)document.getElementById('pc'+(i+1))?.focus();});
+    inp.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!inp.value&&i>0)document.getElementById('pc'+(i-1))?.focus();});
+    g.appendChild(inp);
+  }
+  document.getElementById('pc0')?.focus();
+}
+function getPin(len=8){return Array.from({length:len},(_,i)=>document.getElementById('pc'+i)?.value||'').join('');}
+function doReg(){
+  const pin=getPin();
+  if(pin.length<8)return toast('Isi semua 8 karakter PIN!');
+  if(!/[a-zA-Z]/.test(pin)||!/[0-9]/.test(pin))return toast('PIN harus huruf+angka!');
+  socket.emit('auth',{mode:'reg',name:regName,pass:regPass,pin,av:selAv});
+}
+
+// ── LOGIN ──────────────────────────────────────────
+function showLogin(){
+  SM('Masuk',`
+    <input class="input" id="li-n" placeholder="Nama Faiz Messenger" style="margin-bottom:8px;">
+    <input class="input" id="li-p" type="password" placeholder="Password" style="margin-bottom:14px;">
+    <div class="btn btn-primary" style="width:100%;margin-bottom:10px;" onclick="doLogin()">Masuk</div>
+    <div class="or-div">atau</div>
+    <div class="btn" style="width:100%;margin-bottom:8px;" onclick="loginGoogle()">
+      <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Masuk dengan Google
+    </div>
+    <div class="btn" style="width:100%;background:var(--ink);color:var(--bg);border-color:var(--ink);" onclick="loginApple()">
+      Masuk dengan Apple ID
+    </div>
+  `);
+}
+function doLogin(){
+  const n=document.getElementById('li-n')?.value.trim();
+  const p=document.getElementById('li-p')?.value;
+  if(!n||!p)return toast('Isi semua field!');
+  socket.emit('auth',{mode:'login',name:n,pass:p});
+}
+let socProv='',socId='';
+function loginGoogle(){SM('Google',`<input class="input" id="g-email" type="email" placeholder="Email Google" style="margin-bottom:10px;"><div class="btn btn-primary" style="width:100%;" onclick="mockSocial('google')">Lanjutkan</div>`);}
+function loginApple(){SM('Apple ID',`<input class="input" id="a-email" type="email" placeholder="Apple ID Email" style="margin-bottom:10px;"><div class="btn btn-primary" style="width:100%;" onclick="mockSocial('apple')">Lanjutkan</div>`);}
+function mockSocial(prov){
+  const email=document.getElementById(prov==='google'?'g-email':'a-email')?.value.trim();
+  if(!email||!email.includes('@'))return toast('Email tidak valid!');
+  socProv=prov; socId=email; socket.emit('auth',{mode:'social',provider:prov,social_id:email,email});
+}
+socket.on('social_setup_needed',d=>{
+  socProv=d.provider; socId=d.social_id;
+  const seeds=Array.from({length:8},()=>Math.random().toString(36).slice(2,7));
+  SM('Selesaikan Profil',`
+    <input class="input" id="soc-n" value="${(d.email||'').split('@')[0]}" placeholder="Nama" style="margin-bottom:10px;">
+    <div class="av-grid">${seeds.map(s=>`<div class="avo" onclick="selAv2(this,'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${s}')"><img src="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${s}"></div>`).join('')}</div>
+    <div class="btn btn-primary" style="width:100%;" onclick="socNextPin()">Pilih PIN →</div>
+  `,true);
+});
+function socNextPin(){
+  const n=document.getElementById('soc-n').value.trim();
+  if(!n||!selAv)return toast(!n?'Masukkan nama!':'Pilih avatar!');
+  regName=n;
+  SM('Pilih PIN',`<div class="pin-row" id="pgrid" style="flex-wrap:wrap;justify-content:center;margin-bottom:16px;"></div><div class="btn btn-primary" style="width:100%;" onclick="doSocReg()">Buat Akun</div>`);
+  buildPinGrid('pgrid',8,'pin-cell');
+}
+function doSocReg(){
+  const pin=getPin();
+  if(pin.length<8)return toast('Isi semua PIN!');
+  if(!/[a-zA-Z]/.test(pin)||!/[0-9]/.test(pin))return toast('PIN harus huruf+angka!');
+  socket.emit('auth',{mode:'social_reg',provider:socProv,social_id:socId,name:regName,pin,av:selAv});
+}
+
+// ── AUTH RESPONSE ──────────────────────────────────
+socket.on('auth_res',d=>{
+  if(d.st==='err'){
+    document.getElementById('auto-msg').style.display='none';
+    document.getElementById('login-btns').style.display='flex';
+    return toast(d.msg);
+  }
+  myP=d.pin; myN=d.name; myAv=d.av;
+  chatData=d.hist||{}; friendsData=d.friends||{}; blocksData=new Set(d.blocks||[]);
+  settings=Object.assign(settings,d.settings||{});
+  lockedChats=d.locked_chats||{};
+  interactionCounts=d.interaction_counts||{};
+  localStorage.setItem('fz_sess',myP);
+  CM(); updateHeader(); updateProf();
+  renderChats(); renderFriends(); updateBadge(); applySettingsUI();
+  socket.emit('mark_online',{pin:myP,hide:settings.hide_online});
+  go('scr-main','z');
+  socket.emit('request_ai_context',{pin:myP});
+});
+
+function updateHeader(){
+  // Dynamic main title shows user name
+  document.getElementById('main-screen-title').textContent=myN||'Pesan';
+  document.getElementById('main-pin').textContent='PIN: '+myP;
+  setAv('main-av',myAv);
+  document.getElementById('dnd-badge').style.display=settings.dnd?'block':'none';
+  document.getElementById('main-mood').textContent=settings.mood||'';
+}
+function updateProf(){
+  document.getElementById('prof-name').textContent=myN;
+  document.getElementById('prof-pin').textContent='Faiz ID: '+myP;
+  setAv('prof-av',myAv);
+  document.getElementById('prof-mood-badge').textContent=settings.mood||'';
+  const qr=document.getElementById('prof-qr'); qr.innerHTML='';
+  new QRCode(qr,{text:myP,width:120,height:120,colorDark:'#1a1812',colorLight:'#fdfaf4'});
+  // Friends count
+  const fc=Object.keys(friendsData).length;
+  document.getElementById('friends-count-label').textContent=fc?`${fc} teman`:'';
+}
+function doLogout(){
+  localStorage.removeItem('fz_sess');
+  socket.emit('mark_offline',{pin:myP});
+  myP=''; myN=''; myAv=''; chatData={}; friendsData={}; blocksData=new Set();
+  document.getElementById('navbar').style.display='none';
+  document.getElementById('auto-msg').style.display='none';
+  document.getElementById('login-btns').style.display='flex';
+  go('scr-intro','z');
+}
+
+// ── SETTINGS ──────────────────────────────────────
+function applySettingsUI(){
+  document.getElementById('tog-online')?.classList.toggle('on',!!settings.hide_online);
+  document.getElementById('tog-dnd')?.classList.toggle('on',!!settings.dnd);
+  document.getElementById('tog-stealth')?.classList.toggle('on',!!settings.stealth_read);
+  document.getElementById('ad-sub').textContent=settings.auto_delete?
+    `Hapus setelah ${settings.auto_delete>=3600?settings.auto_delete/3600+' jam':settings.auto_delete/60+' mnt'} dibaca`:'Nonaktif';
+  document.getElementById('dnd-badge').style.display=settings.dnd?'block':'none';
+}
+function toggleSetting(key){
+  settings[key]=!settings[key];
+  socket.emit('update_settings',{pin:myP,key,val:settings[key]?1:0});
+  applySettingsUI();
+  if(key==='hide_online')socket.emit('mark_online',{pin:myP,hide:settings.hide_online});
+  if(key==='dnd')updateHeader();
+}
+function showAutoDeleteSetting(){
+  SM('Auto-Delete Pesan',`
+    <p style="font-size:12px;color:var(--ink-2);margin-bottom:14px;">Pesan terhapus otomatis setelah dibaca:</p>
+    ${[['Nonaktif',0],['5 menit',300],['1 jam',3600],['24 jam',86400]].map(([l,v])=>
+      `<div class="btn ${settings.auto_delete===v?'btn-primary':''}" style="width:100%;margin-bottom:8px;" onclick="setAD(${v})">${l}</div>`).join('')}`);
+}
+function setAD(v){settings.auto_delete=v;socket.emit('update_settings',{pin:myP,key:'auto_delete',val:v});applySettingsUI();CM();toast('Diperbarui');}
+function showLockSettings(){
+  SM('Kunci Chat',`
+    <p style="font-size:12px;color:var(--ink-2);margin-bottom:14px;">PIN 4 digit untuk membuka chat yang dikunci</p>
+    <input class="input" id="lpin" type="password" maxlength="4" placeholder="4 digit angka" style="margin-bottom:14px;">
+    <div class="btn btn-primary" style="width:100%;" onclick="saveLockPin()">Simpan PIN Kunci</div>`);
+}
+function saveLockPin(){
+  const p=document.getElementById('lpin').value;
+  if(!/^\d{4}$/.test(p))return toast('PIN kunci 4 digit angka!');
+  socket.emit('update_settings',{pin:myP,key:'lock_pin',val:p}); settings.lock_pin=p; CM(); toast('Disimpan!');
+}
+let lockCallback=null;
+function tryOpenLockedChat(peer,cb){
+  if(!settings.lock_pin||!lockedChats[peer]){cb();return;}
+  lockCallback=cb;
+  document.getElementById('lock-chat-name').textContent=chatData[peer]?.name||peer;
+  const g=document.getElementById('lock-pgrid'); g.innerHTML='';
+  for(let i=0;i<4;i++){
+    const inp=document.createElement('input');
+    inp.className='pin-cell'; inp.maxLength=1; inp.type='password'; inp.id='lp'+i;
+    inp.style.cssText='width:54px;height:62px;';
+    inp.addEventListener('input',()=>{if(inp.value&&i<3)document.getElementById('lp'+(i+1))?.focus();});
+    g.appendChild(inp);
+  }
+  document.getElementById('lock-screen').classList.add('show');
+  document.getElementById('lp0').focus();
+}
+function submitLock(){
+  const entered=Array.from({length:4},(_,i)=>document.getElementById('lp'+i)?.value||'').join('');
+  if(entered===settings.lock_pin){
+    document.getElementById('lock-screen').classList.remove('show');
+    if(lockCallback){lockCallback();lockCallback=null;}
+  }else toast('PIN salah!');
+}
+
+// ── MOOD ──────────────────────────────────────────
+const moods=['😊','😎','🥰','😴','😤','🤔','🥳','😢','❤️‍🔥','✨','🫠','💪','🔥','🌙','⚡'];
+function showMoodPicker(){
+  SM('Pilih Mood',`
+    <div class="mood-grid">${moods.map(m=>`<div class="mood-item" onclick="setMood('${m}')">${m}</div>`).join('')}
+    <div class="mood-item" onclick="setMood('')" style="font-size:16px;display:flex;align-items:center;justify-content:center;">✕</div></div>`);
+}
+function setMood(m){
+  settings.mood=m; socket.emit('update_settings',{pin:myP,key:'mood',val:m});
+  socket.emit('broadcast_mood',{pin:myP,mood:m});
+  updateHeader(); updateProf(); CM();
+}
+
+// ── AI PERSONALITY ─────────────────────────────────
+function showPersonalityPicker(){
+  const cur=settings.ai_personality||'friendly';
+  SM('Kepribadian Faiz Assistant',`
+    <p style="font-size:12px;color:var(--ink-2);margin-bottom:14px;">Pilih bagaimana AI merespons kamu:</p>
+    <div class="personality-grid">
+      ${Object.entries(aiPersonalities).map(([k,v])=>`
+        <div class="p-card ${cur===k?'sel':''}" onclick="setPersonality('${k}')">
+          <div class="p-card-icon">${v.icon}</div>
+          <div class="p-card-name">${v.label}</div>
+          <div class="p-card-desc">${v.desc}</div>
+        </div>`).join('')}
+    </div>
+    <div class="btn btn-primary" style="width:100%;" onclick="CM()">Simpan</div>`);
+}
+function setPersonality(k){
+  settings.ai_personality=k;
+  socket.emit('update_settings',{pin:myP,key:'ai_personality',val:k});
+  document.querySelectorAll('.p-card').forEach(e=>e.classList.remove('sel'));
+  event?.target?.closest('.p-card')?.classList.add('sel');
+  const p=aiPersonalities[k];
+  document.getElementById('ai-personality-label').textContent=p?.label||'';
+  toast(`Kepribadian: ${p?.label}`);
+}
+
+// ── ONLINE STATUS ──────────────────────────────────
+socket.on('user_online',d=>{onlineUsers.add(d.pin);updateOnlineDot();renderChats();});
+socket.on('user_offline',d=>{onlineUsers.delete(d.pin);updateOnlineDot();renderChats();});
+socket.on('online_status_confirmed',()=>{});
+function updateOnlineDot(){
+  const dot=document.getElementById('chat-online-dot');
+  if(dot)dot.style.display=onlineUsers.has(activeP)?'block':'none';
+}
+socket.on('user_mood_update',d=>{
+  if(chatData[d.pin])chatData[d.pin].mood=d.mood;
+  if(friendsData[d.pin])friendsData[d.pin].mood=d.mood;
+  renderChats(); renderFriends();
+});
+socket.on('profile_realtime',d=>{
+  if(chatData[d.pin]){chatData[d.pin].name=d.name;chatData[d.pin].av=d.av;}
+  if(friendsData[d.pin]){friendsData[d.pin].name=d.name;friendsData[d.pin].av=d.av;}
+  renderChats(); renderFriends();
+  if(activeP===d.pin){
+    document.getElementById('chat-name').textContent=d.name;
+    document.getElementById('chat-av').innerHTML=`<img src="${d.av}">`;
+  }
+});
+
+// ── EDIT PROFILE ──────────────────────────────────
+function showEditProfile(){
+  const seeds=Array.from({length:8},()=>Math.random().toString(36).slice(2,7));
+  SM('Edit Profil',`
+    <input class="input" id="ep-n" value="${myN}" placeholder="Nama" style="margin-bottom:12px;">
+    <div class="section-header" style="margin-bottom:8px;">Pilih Avatar Preset</div>
+    <div class="av-grid">${seeds.map(s=>`<div class="avo" onclick="selAv2(this,'https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${s}')"><img src="https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${s}"></div>`).join('')}</div>
+    <div class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="doEditProf()">Simpan</div>`,true);
+  selAv=myAv;
+}
+function doEditProf(){
+  const n=document.getElementById('ep-n')?.value.trim();
+  if(!n)return toast('Nama tidak boleh kosong!');
+  socket.emit('edit_profile',{pin:myP,name:n,av:selAv||myAv});
+}
+socket.on('profile_updated',d=>{myN=d.name; myAv=d.av; updateHeader(); updateProf(); CM(); toast('Profil diperbarui!');});
+function uploadCustomAv(el){
+  const r=new FileReader();
+  r.onload=ev=>{myAv=ev.target.result; selAv=ev.target.result; socket.emit('edit_profile',{pin:myP,name:myN,av:myAv}); toast('Avatar diperbarui!');};
+  r.readAsDataURL(el.files[0]); el.value='';
+}
+
+// ── FRIENDSHIP LEVELS ─────────────────────────────
+const LEVELS=[
+  {min:0,   max:10,   name:'Kenalan',    icon:'🤝', color:'var(--ink-3)'},
+  {min:10,  max:50,   name:'Teman',      icon:'😊', color:'var(--blue)'},
+  {min:50,  max:150,  name:'Teman Dekat',icon:'😄', color:'var(--green)'},
+  {min:150, max:400,  name:'Sahabat',    icon:'🤗', color:'var(--gold)'},
+  {min:400, max:1000, name:'BFF',        icon:'🔥', color:'var(--red)'},
+  {min:1000,max:Infinity,name:'Soul Mate',icon:'💫',color:'var(--gold)'},
+];
+function getFriendshipLevel(cnt){for(const l of LEVELS)if(cnt>=l.min&&cnt<l.max)return{...l,cnt};return{...LEVELS[0],cnt:0};}
+
+// ── CHAT LIST ──────────────────────────────────────
+function renderChats(){
+  const el=document.getElementById('chat-list'); el.innerHTML='';
+  const keys=Object.keys(chatData);
+  if(!keys.length){
+    el.innerHTML='<div style="text-align:center;color:var(--ink-3);padding:52px 20px;"><div style="font-size:32px;margin-bottom:12px;opacity:.4;">💬</div><div style="font-family:\'Cormorant Garamond\',serif;font-size:18px;font-weight:600;margin-bottom:6px;">Belum ada percakapan</div><div style="font-size:13px;">Tambah teman dan mulai mengobrol</div></div>';
+    return;
+  }
+  keys.sort((a,b)=>{
+    const la=chatData[a].msgs?.slice(-1)[0]; const lb=chatData[b].msgs?.slice(-1)[0];
+    return (lb?lb.id:0)-(la?la.id:0);
+  });
+  keys.forEach(p=>{
+    const u=chatData[p]; const blocked=blocksData.has(p)||u.blockedByThem;
+    const unread=u.unread||0;
+    const last=u.msgs?.filter(m=>!m.deleted).slice(-1)[0];
+    const prev=last?(last.type==='img'?'📷 Foto':last.type==='loc'?'📍 Lokasi':last.type==='ping'?'❗ Ping':last.type==='voice'?'🎤 Pesan suara':last.cont||''):'';
+    const isOnline=onlineUsers.has(p)&&!settings.hide_online;
+    const lvl=getFriendshipLevel(interactionCounts[p]||0);
+    el.innerHTML+=`<div class="li" onclick="openChat('${p}')">
+      <div style="position:relative;">
+        <div class="av" style="width:46px;height:46px;${blocked?'filter:grayscale(1);opacity:.5;':''}"><img src="${u.av}"></div>
+        ${isOnline&&!blocked?'<div class="online-dot"></div>':''}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:2px;">
+          <span style="font-weight:600;font-size:14px;${u.blockedByThem?'color:var(--ink-3);':''}">${blocked&&!u.blockedByThem?'Pengguna':u.name+(u.mood?' '+u.mood:'')}</span>
+          ${friendsData[p]?`<span style="font-size:12px;">${lvl.icon}</span>`:''}
+          ${lockedChats[p]?'<span style="font-size:11px;color:var(--ink-3);">🔒</span>':''}
+        </div>
+        <div style="font-size:12px;color:var(--ink-3);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:190px;">${prev}</div>
+      </div>
+      ${unread>0?`<div class="badge">${unread}</div>`:''}
+    </div>`;
+  });
+}
+function updateBadge(){
+  let t=0; Object.values(chatData).forEach(u=>t+=(u.unread||0));
+  const b=document.getElementById('chat-badge'); b.style.display=t>0?'flex':'none'; b.textContent=t;
+}
+function openChat(p){
+  tryOpenLockedChat(p,()=>{
+    activeP=p; const u=chatData[p]||{name:p,av:'',msgs:[],unread:0};
+    const blocked=blocksData.has(p);
+    document.getElementById('chat-name').textContent=blocked?'Pengguna':u.name+(u.mood?' '+u.mood:'');
+    document.getElementById('chp').textContent='PIN · '+p;
+    const ae=document.getElementById('chat-av'); ae.innerHTML=`<img src="${u.av}">`;
+    ae.style.filter=blocked||u.blockedByThem?'grayscale(1)':'';
+    if(chatData[p])chatData[p].unread=0; updateBadge(); renderChats();
+    updateOnlineDot(); clearReply();
+    go('scr-chat','r'); renderMsgs();
+    socket.emit('request_ai_context',{pin:myP});
+  });
+}
+
+// ── MESSAGES ──────────────────────────────────────
+function fmtDur(s){const m=Math.floor(s/60);return `${m}:${String(Math.floor(s%60)).padStart(2,'0')}`;}
+
+function renderMsgs(){
+  const b=document.getElementById('chat-box'); b.innerHTML='';
+  const msgs=chatData[activeP]?.msgs||[];
+  let lastDate='';
+  msgs.forEach(m=>{
+    if(!m.deleted){
+      const d=m.time?m.time.split(' ')[0]||'':'';
+      if(d&&d!==lastDate){
+        const div=document.createElement('div'); div.className='date-div'; div.textContent=d;
+        b.appendChild(div); lastDate=d;
+      }
+      appendBubble(m,false);
+    }
+  });
+  if(aiInChatEnabled[activeP]){
+    const info=document.createElement('div');
+    info.innerHTML=`<div style="text-align:center;padding:8px 0;"><span class="ai-badge" style="font-size:11px;">✦ Faiz Assistant aktif di chat ini</span></div>`;
+    b.appendChild(info);
+  }
+  b.scrollTop=b.scrollHeight;
+}
+
+function appendBubble(m,animate=true){
+  const box=document.getElementById('chat-box'); const isMe=m.sender===myP;
+  if(m.deleted)return;
+  const div=document.createElement('div');
+  div.className=`bubble ${isMe?'bubble-me'+(m.status==='Read'?' read':''):'bubble-them'}`;
+  div.dataset.msgId=m.id;
+  if(!animate)div.style.animation='none';
+
+  let replyHtml='';
+  if(m.reply_to){
+    const orig=chatData[activeP]?.msgs.find(x=>x.id===m.reply_to);
+    if(orig)replyHtml=`<div class="reply-preview">↩ ${orig.cont?.slice?.(0,60)||'Pesan'}</div>`;
+  }
+
+  let content='';
+  if(m.type==='voice'){
+    const bars=Array.from({length:20},()=>`<div class="vbar" style="height:${5+Math.random()*18}px"></div>`).join('');
+    content=`<div class="vbubble">
+      <div class="vplayer">
+        <div class="vplay" onclick="playVoice(this,'${m.cont}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="${isMe?'white':'currentColor'}"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <div class="vwave">${bars}</div>
+        <div class="vdur">${fmtDur(m.duration||0)}</div>
+      </div>${m.transcript?`<div class="vtrans">${m.transcript}</div>`:''}
+    </div>`;
+  }else if(m.type==='img'){
+    content=`<img src="${m.cont}" style="max-width:100%;border-radius:8px;display:block;">`;
+  }else if(m.type==='loc'){
+    content=`<a href="${m.cont}" target="_blank" style="color:inherit;font-weight:500;text-decoration:none;">📍 Buka Lokasi</a>`;
+  }else if(m.type==='ping'){
+    content=`<span class="ping-bubble">❗ Ping!</span>`;
+  }else{
+    content=m.cont||'';
+  }
+
+  const edited=m.edited?`<span class="edited-tag">(diedit)</span>`:'';
+  const statusIcon=isMe?`<span style="font-size:10px;opacity:.45;">${m.status==='Read'?'●●':'○○'}</span>`:'';
+  div.innerHTML=replyHtml+content+`<div class="btime">${m.time||''}${edited}${statusIcon}</div>`;
+  addBubbleLongPress(div,m,isMe);
+  box.appendChild(div);
+
+  if(m.type==='ping'&&!isMe&&m.status!=='Read'){
+    div.classList.add('ping-active');
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      [0,.3,.6].forEach(t=>{
+        const o=ctx.createOscillator(),g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value=880; o.type='sine';
+        g.gain.setValueAtTime(.2,ctx.currentTime+t);
+        g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+t+.15);
+        o.start(ctx.currentTime+t); o.stop(ctx.currentTime+t+.15);
+      });
+    }catch(_){}
+  }
+
+  if(m.auto_delete_secs&&isMe&&m.status==='Read'){
+    let rem=m.auto_delete_secs;
+    const tag=document.createElement('div');
+    tag.style.cssText='font-size:9px;color:var(--gold);margin-top:4px;';
+    tag.textContent=`⏱ ${fmtDur(rem)}`; div.appendChild(tag);
+    const iv=setInterval(()=>{rem--; tag.textContent=`⏱ ${fmtDur(rem)}`; if(rem<=0){clearInterval(iv);div.style.opacity='0';setTimeout(()=>div.remove(),300);}},1000);
+  }
+  if(animate)setTimeout(()=>box.scrollTop=box.scrollHeight,50);
+}
+
+// ── CONTEXT MENU ──────────────────────────────────
+function addBubbleLongPress(div,m,isMe){
+  let lpt;
+  const start=e=>{e.stopPropagation(); lpt=setTimeout(()=>showCtx(div,m,isMe,e),500);};
+  const end=()=>clearTimeout(lpt);
+  div.addEventListener('touchstart',start,{passive:true});
+  div.addEventListener('touchend',end);
+  div.addEventListener('mousedown',start);
+  div.addEventListener('mouseup',end);
+  div.addEventListener('mouseleave',end);
+}
+function showCtx(div,m,isMe,e){
+  removeCtx();
+  const menu=document.createElement('div'); menu.className='ctx-menu'; menu.id='ctx-menu';
+  const items=[
+    {icon:'↩',label:'Balas',fn:()=>{removeCtx();setReply(m);}},
+    ...(isMe&&m.type==='text'&&!m.deleted?[{icon:'✏️',label:'Edit',fn:()=>{removeCtx();editMsg(m);}}]:[]),
+    ...(isMe&&!m.deleted?[{icon:'🗑',label:'Hapus',fn:()=>{removeCtx();deleteMsg(m);},cls:'danger'}]:[]),
+    ...(m.type==='text'&&m.cont?[{icon:'📋',label:'Salin',fn:()=>{navigator.clipboard?.writeText(m.cont);removeCtx();toast('Disalin!');}}]:[]),
+    {icon:'✕',label:'Tutup',fn:removeCtx}
+  ];
+  items.forEach(it=>{
+    const d=document.createElement('div'); d.className='ctx-item '+(it.cls||'');
+    d.innerHTML=`${it.icon} ${it.label}`; d.onclick=it.fn; menu.appendChild(d);
+  });
+  const rect=div.getBoundingClientRect();
+  menu.style.left=Math.min(rect.left+8,window.innerWidth-200)+'px';
+  menu.style.top=Math.max(10,rect.top-items.length*44-8)+'px';
+  document.body.appendChild(menu);
+  setTimeout(()=>document.addEventListener('click',removeCtx,{once:true}),80);
+}
+function removeCtx(){document.getElementById('ctx-menu')?.remove();}
+
+// ── REPLY ─────────────────────────────────────────
+function setReply(m){
+  replyToMsg=m;
+  document.getElementById('reply-bar-text').textContent=`Membalas: ${m.cont?.slice?.(0,60)||'Pesan'}`;
+  document.getElementById('reply-bar').classList.add('show');
+  document.getElementById('msg-in').focus();
+}
+function clearReply(){replyToMsg=null; document.getElementById('reply-bar').classList.remove('show');}
+
+// ── EDIT / DELETE ─────────────────────────────────
+function editMsg(m){
+  SM('Edit Pesan',`
+    <textarea class="input" id="etxt" style="height:100px;">${m.cont}</textarea>
+    <div class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="submitEdit(${m.id})">Simpan</div>`);
+}
+function submitEdit(id){
+  const txt=document.getElementById('etxt')?.value.trim();
+  if(!txt)return toast('Pesan kosong!');
+  socket.emit('edit_msg',{id,cont:txt,from:myP,to:activeP}); CM();
+}
+socket.on('msg_edited',d=>{
+  [d.from,d.to].forEach(pin=>{if(chatData[pin]){const m=chatData[pin].msgs.find(x=>x.id===d.id);if(m){m.cont=d.cont;m.edited=1;}}});
+  if(activeP===d.from||activeP===d.to)renderMsgs();
+});
+function deleteMsg(m){socket.emit('delete_msg',{id:m.id,from:myP,to:activeP});}
+socket.on('msg_deleted',d=>{
+  [d.from,d.to].forEach(pin=>{if(chatData[pin]){const m=chatData[pin].msgs.find(x=>x.id===d.id);if(m)m.deleted=1;}});
+  if(activeP===d.from||activeP===d.to)renderMsgs();
+});
+
+// ── VOICE PLAYBACK ─────────────────────────────────
+let curAudio=null;
+function playVoice(btn,url){
+  if(curAudio){curAudio.pause();curAudio=null;}
+  const vb=btn.closest('.vbubble'); const bars=vb?vb.querySelectorAll('.vbar'):[];
+  const audio=new Audio(url); curAudio=audio;
+  btn.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+  audio.ontimeupdate=()=>{const p=audio.currentTime/audio.duration; bars.forEach((b,i)=>b.classList.toggle('on',i/bars.length<=p));};
+  audio.onended=()=>{bars.forEach(b=>b.classList.remove('on')); btn.innerHTML=`<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;};
+  audio.play().catch(()=>toast('Gagal memutar'));
+}
+
+// ── VOICE RECORDING ──────────────────────────────
+function initSR(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR)return null;
+  const r=new SR(); r.continuous=true; r.interimResults=false; r.lang='id-ID';
+  r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)voiceTranscript+=e.results[i][0].transcript+' ';};
+  r.onerror=()=>{}; return r;
+}
+async function startRec(e){
+  e.preventDefault(); if(isRec)return;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    audioChunks=[]; voiceTranscript='';
+    const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/ogg;codecs=opus';
+    mediaRec=new MediaRecorder(stream,{mimeType:mime});
+    mediaRec.ondataavailable=ev=>{if(ev.data.size>0)audioChunks.push(ev.data);};
+    mediaRec.start(100); isRec=true; recStart=Date.now();
+    srec=initSR(); if(srec)srec.start();
+    document.getElementById('vbtn').style.background='var(--red)';
+    document.getElementById('msg-in').placeholder='🔴 Merekam… lepas untuk kirim';
+    let s=0; recTimer=setInterval(()=>{s++; document.getElementById('msg-in').placeholder=`🔴 ${fmtDur(s)}`;},1000);
+  }catch{toast('Izin mikrofon diperlukan!');}
+}
+async function stopRec(e){
+  e.preventDefault(); if(!isRec||!mediaRec)return;
+  isRec=false; clearInterval(recTimer);
+  document.getElementById('msg-in').placeholder='Tulis pesan…';
+  document.getElementById('vbtn').style.background='var(--surface-2)';
+  if(srec){try{srec.stop();}catch(_){}}
+  const dur=(Date.now()-recStart)/1000;
+  mediaRec.stop();
+  mediaRec.onstop=()=>{
+    const blob=new Blob(audioChunks,{type:audioChunks[0]?.type||'audio/webm'});
+    const fr=new FileReader();
+    fr.onload=ev=>socket.emit('msg',{from:myP,to:activeP,cont:ev.target.result,type:'voice',duration:dur,transcript:voiceTranscript.trim()});
+    fr.readAsDataURL(blob);
+    mediaRec.stream?.getTracks().forEach(t=>t.stop()); mediaRec=null;
+  };
+}
+
+// ── AI TONE CHECK ─────────────────────────────────
+function showToneWarn(txt,analysis){
+  pendingToneMsg=txt;
+  document.getElementById('tw-title').textContent=analysis.warning||'Pesan mungkin menyinggung';
+  document.getElementById('tw-body').textContent=`Nada: ${analysis.tone} · Skor: ${analysis.severity}%`;
+  document.getElementById('tw-suggest').textContent=analysis.suggestion||'';
+  document.getElementById('tone-fill').style.width=analysis.severity+'%';
+  document.getElementById('tone-fill').style.background=analysis.severity>60?'var(--red)':analysis.severity>30?'var(--gold)':'var(--green)';
+  let rem=10; document.getElementById('tw-cd').textContent=rem;
+  clearInterval(toneCountdownIv);
+  toneCountdownIv=setInterval(()=>{rem--; document.getElementById('tw-cd').textContent=rem; if(rem<=0){clearInterval(toneCountdownIv);cancelWarn();}},1000);
+  document.getElementById('tone-warn').classList.add('show');
+}
+function cancelWarn(){clearInterval(toneCountdownIv); document.getElementById('tone-warn').classList.remove('show'); pendingToneMsg='';}
+function sendAfterWarn(){const txt=pendingToneMsg; cancelWarn(); if(txt&&activeP)doSend(txt);}
+
+// ── AI HOLD-SEND ──────────────────────────────────
+let pendingAiMsg='';
+function startSendHold(){
+  sendHoldFired=false;
+  sendHoldTimer=setTimeout(()=>{
+    sendHoldFired=true;
+    const txt=document.getElementById('msg-in').value.trim();
+    if(!txt||!activeP)return;
+    pendingAiMsg=txt;
+    document.getElementById('ai-tone-label').textContent='Menganalisis…';
+    document.getElementById('ai-suggestion').textContent='';
+    document.getElementById('ai-panel').classList.add('show');
+    socket.emit('ai_tone_check',{pin:myP,message:txt});
+  },700);
+}
+function stopSendHold(){clearTimeout(sendHoldTimer);}
+function handleSendClick(){if(!sendHoldFired)sendTxt();}
+
+socket.on('ai_tone_result',d=>{
+  if(!document.getElementById('ai-panel').classList.contains('show'))return;
+  const tones={normal:'😐 Normal',angry:'😡 Marah',sarcastic:'🙄 Sarkastik',sad:'😢 Sedih',defensive:'🛡 Defensif',aggressive:'⚠️ Agresif'};
+  document.getElementById('ai-tone-label').textContent=tones[d.tone]||d.tone||'💬 Netral';
+  document.getElementById('ai-suggestion').textContent=d.suggestion||'Pesan ini terdengar baik untuk dikirim.';
+  if(d.is_harmful){closeAiPanel(); showToneWarn(pendingAiMsg,d);}
+});
+function closeAiPanel(){document.getElementById('ai-panel').classList.remove('show'); pendingAiMsg='';}
+function sendDirect(){const txt=pendingAiMsg; closeAiPanel(); if(txt&&activeP){doSend(txt); document.getElementById('msg-in').value='';}}
+function delaySend(secs){
+  const txt=pendingAiMsg||document.getElementById('msg-in').value.trim();
+  closeAiPanel(); cancelWarn();
+  toast(`Pesan dikirim dalam ${fmtDur(secs)}`);
+  if(delayTimer)clearTimeout(delayTimer);
+  delayTimer=setTimeout(()=>{if(txt&&activeP){doSend(txt); toast('Pesan terkirim!'); delayTimer=null;}},secs*1000);
+  document.getElementById('msg-in').value='';
+}
+
+// ── AI REWRITE ────────────────────────────────────
+function showAiRewrite(){
+  const txt=pendingAiMsg||document.getElementById('msg-in').value.trim();
+  if(!txt)return toast('Tidak ada pesan untuk ditulis ulang!');
+  closeAiPanel();
+  SM('✦ Tulis Ulang dengan AI',`
+    <p style="font-size:12px;color:var(--ink-2);margin-bottom:12px;">Pesan asli:</p>
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;font-size:13px;font-style:italic;margin-bottom:14px;line-height:1.5;">"${txt.slice(0,120)}"</div>
+    <div class="section-header" style="margin-bottom:8px;">Pilih nada target</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      ${[
+        ['professional','💼','Profesional'],
+        ['friendly','😊','Santai & Akrab'],
+        ['assertive','💪','Tegas'],
+        ['apologetic','🙏','Meminta Maaf'],
+        ['business','📊','Bisnis'],
+        ['flirty','✨','Playful']
+      ].map(([k,i,n])=>`<div class="btn btn-sm" id="at-${k}" onclick="selectAiTone('${k}','${txt.replace(/'/g,"&#39;")}')">${i} ${n}</div>`).join('')}
+    </div>
+    <div id="at-result" style="display:none;">
+      <div class="section-header" style="margin-bottom:8px;">Hasil tulisan ulang</div>
+      <div id="at-text" style="background:var(--gold-mist);border:1px solid var(--gold-lt);border-left:2px solid var(--gold);border-radius:var(--r-md);padding:12px;font-size:14px;line-height:1.55;"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <div class="btn btn-sm" onclick="copyAiRewrite()">📋 Salin</div>
+        <div class="btn btn-sm btn-primary" onclick="sendAiRewrite()">⚡ Kirim</div>
+      </div>
+    </div>`,true);
+}
+let aiRewriteResult='';
+function selectAiTone(tone,original){
+  document.querySelectorAll('[id^="at-"]').forEach(b=>{if(b.tagName==='DIV')b.classList.remove('btn-primary');});
+  document.getElementById('at-'+tone)?.classList.add('btn-primary');
+  document.getElementById('at-result').style.display='block';
+  document.getElementById('at-text').innerHTML='<span style="color:var(--ink-3);font-size:12px;font-style:italic;">✦ AI sedang menulis ulang…</span>';
+  socket.emit('ai_rewrite',{pin:myP,message:original,tone});
+}
+socket.on('ai_rewrite_result',d=>{
+  aiRewriteResult=d.result;
+  const el=document.getElementById('at-text');
+  if(el)el.textContent=d.result;
+});
+function copyAiRewrite(){navigator.clipboard?.writeText(aiRewriteResult); toast('Disalin!');}
+function sendAiRewrite(){if(aiRewriteResult&&activeP){CM(); doSend(aiRewriteResult);}}
+
+// ── TONE TUNER ────────────────────────────────────
+function showToneTuner(){
+  const cur=document.getElementById('ai-in').value.trim()||'';
+  SM('✍️ Ubah Nada Pesan',`
+    <textarea class="input" id="tt-orig" placeholder="Paste atau tulis pesanmu…" style="margin-bottom:12px;height:90px;">${cur}</textarea>
+    <div class="section-header" style="margin-bottom:8px;">Pilih nada</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+      ${[['professional','💼','Profesional'],['friendly','😊','Santai'],['assertive','💪','Tegas'],['apologetic','🙏','Maaf'],['business','📊','Bisnis'],['flirty','✨','Playful']].map(([k,i,n])=>`<div class="btn btn-sm" onclick="doToneTuner('${k}')">${i} ${n}</div>`).join('')}
+    </div>
+    <div id="tt-result" style="display:none;">
+      <div id="tt-out" style="background:var(--gold-mist);border:1px solid var(--gold-lt);border-left:2px solid var(--gold);border-radius:var(--r-md);padding:12px;font-size:14px;line-height:1.55;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;">
+        <div class="btn btn-sm" onclick="navigator.clipboard?.writeText(document.getElementById('tt-out').textContent);toast('Disalin!')">📋 Salin</div>
+        <div class="btn btn-sm btn-primary" onclick="if(activeP){CM();doSend(document.getElementById('tt-out').textContent);}else toast('Buka chat dulu!')">⚡ Kirim</div>
+      </div>
+    </div>`,true);
+}
+function doToneTuner(tone){
+  const msg=document.getElementById('tt-orig')?.value.trim();
+  if(!msg)return toast('Tulis pesan dulu!');
+  document.getElementById('tt-result').style.display='block';
+  document.getElementById('tt-out').innerHTML='<span style="color:var(--ink-3);font-size:12px;font-style:italic;">✦ Menulis ulang…</span>';
+  socket.emit('ai_rewrite',{pin:myP,message:msg,tone});
+  socket.once('ai_rewrite_result',d=>{
+    const el=document.getElementById('tt-out');
+    if(el)el.textContent=d.result;
+  });
+}
+
+// ── SMART SEARCH ─────────────────────────────────
+function showSmartSearch(){
+  SM('🔍 Smart Search AI',`
+    <input class="input" id="ss-q" placeholder="cth: kapan kita janjian, foto minggu lalu…" style="margin-bottom:12px;">
+    <div class="btn btn-primary" style="width:100%;" onclick="doSmartSearch()">Cari dengan AI</div>
+    <div id="ss-res" style="margin-top:14px;"></div>`);
+}
+function doSmartSearch(){
+  const q=document.getElementById('ss-q')?.value.trim(); if(!q)return;
+  document.getElementById('ss-res').innerHTML='<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:14px;">✦ Mencari…</div>';
+  socket.emit('ai_search',{pin:myP,query:q,peer:activeP||null});
+}
+socket.on('ai_search_result',d=>{
+  const el=document.getElementById('ss-res'); if(!el)return;
+  if(!d.results?.length){
+    el.innerHTML=`<div style="color:var(--ink-3);font-size:13px;text-align:center;padding:14px;">${d.summary||'Tidak ditemukan'}</div>`;
+    return;
+  }
+  el.innerHTML=`<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;font-style:italic;">${d.summary}</div>`+
+    d.results.slice(0,5).map(r=>`
+      <div class="li" style="flex-direction:column;align-items:flex-start;margin-bottom:6px;cursor:default;">
+        <div style="font-size:10px;color:var(--gold);font-weight:500;margin-bottom:3px;letter-spacing:.04em;">${r.context||''}</div>
+        <div style="font-size:13px;">${r.text}</div>
+      </div>`).join('');
+});
+
+// ── AI SUMMARY ────────────────────────────────────
+function showSummary(){
+  const msgs=chatData[activeP]?.msgs?.filter(m=>!m.deleted&&m.type==='text')||[];
+  if(msgs.length<3){toast('Perlu lebih banyak pesan untuk diringkas');return;}
+  document.getElementById('summary-panel').classList.add('show');
+  document.getElementById('summary-content').innerHTML='<div style="color:var(--ink-3);text-align:center;padding:24px;font-size:13px;font-style:italic;">✦ Meringkas percakapan…</div>';
+  const name=chatData[activeP]?.name||activeP;
+  socket.emit('ai_summarize',{pin:myP,peer:activeP,peer_name:name});
+}
+socket.on('ai_summary_result',d=>{
+  const el=document.getElementById('summary-content'); if(!el)return;
+  const sentimentColor={positive:'var(--green)',neutral:'var(--ink-2)',negative:'var(--red)'}[d.sentiment]||'var(--ink-2)';
+  el.innerHTML=`
+    <div style="padding:14px;background:var(--gold-mist);border-left:2px solid var(--gold);border-radius:var(--r-md);margin-bottom:14px;font-size:14px;line-height:1.6;">${d.summary}</div>
+    ${d.key_points?.length?`<div class="section-header" style="margin-bottom:8px;">Poin Utama</div>${d.key_points.map(p=>`<div style="display:flex;gap:8px;margin-bottom:6px;font-size:13px;"><span style="color:var(--gold);">·</span><span>${p}</span></div>`).join('')}`:''}
+    ${d.decisions?.length?`<div class="section-header" style="margin:12px 0 8px;">Keputusan</div>${d.decisions.map(p=>`<div style="display:flex;gap:8px;margin-bottom:6px;font-size:13px;"><span style="color:var(--green);">✓</span><span>${p}</span></div>`).join('')}`:''}
+    ${d.open_questions?.length?`<div class="section-header" style="margin:12px 0 8px;">Pertanyaan Terbuka</div>${d.open_questions.map(p=>`<div style="display:flex;gap:8px;margin-bottom:6px;font-size:13px;"><span style="color:var(--gold);">?</span><span>${p}</span></div>`).join('')}`:''}
+    <div style="font-size:11px;color:${sentimentColor};font-weight:500;margin-top:14px;letter-spacing:.04em;">SENTIMEN: ${d.sentiment?.toUpperCase()}</div>`;
+});
+
+// ── AI IN CHAT ────────────────────────────────────
+function showAiInChat(){
+  if(!activeP)return toast('Buka chat terlebih dahulu!');
+  aiInChatEnabled[activeP]=true;
+  const name=chatData[activeP]?.name||activeP;
+  toast('✦ Faiz Assistant bergabung');
+  renderMsgs();
+  const box=document.getElementById('chat-box');
+  const div=document.createElement('div');
+  div.className='ai-chat-bubble';
+  div.textContent=`Halo! Saya Faiz Assistant, siap membantu percakapanmu dengan ${name}. Ketik @ai di depan pesan untuk bertanya langsung ke saya.`;
+  box.appendChild(div);
+  box.scrollTop=box.scrollHeight;
+}
+
+// ── SEND TEXT ─────────────────────────────────────
+function sendTxt(){
+  const inp=document.getElementById('msg-in'); const txt=inp.value.trim();
+  if(!txt||!activeP)return;
+  if(txt.startsWith('@ai ')||txt.startsWith('@AI ')){
+    const q=txt.slice(4); inp.value='';
+    handleAiInlineCommand(q); return;
+  }
+  doSend(txt); inp.value='';
+}
+function handleAiInlineCommand(query){
+  const box=document.getElementById('chat-box');
+  const uDiv=document.createElement('div');
+  uDiv.className='bubble bubble-me'; uDiv.style.animation='none';
+  uDiv.innerHTML=`<span style="opacity:.6;font-size:11px;">@ai</span> ${query}<div class="btime">${new Date().toLocaleTimeString('id',{hour:'2-digit',minute:'2-digit'})}</div>`;
+  box.appendChild(uDiv);
+  const tDiv=document.createElement('div'); tDiv.className='ai-chat-bubble'; tDiv.id='ai-inline-typing';
+  tDiv.innerHTML='<div class="tdots"><span></span><span></span><span></span></div>';
+  box.appendChild(tDiv); box.scrollTop=box.scrollHeight;
+  socket.emit('ai_inline_chat',{pin:myP,message:query,peer:activeP});
+}
+socket.on('ai_inline_result',d=>{
+  const box=document.getElementById('chat-box');
+  document.getElementById('ai-inline-typing')?.remove();
+  const div=document.createElement('div'); div.className='ai-chat-bubble';
+  div.textContent=d.result;
+  box.appendChild(div); box.scrollTop=box.scrollHeight;
+});
+
+function doSend(txt){
+  if(!txt||!activeP)return;
+  socket.emit('msg',{from:myP,to:activeP,cont:txt,type:'text',
+    auto_delete:settings.auto_delete,reply_to:replyToMsg?.id||null});
+  clearReply();
+  socket.emit('increment_interaction',{from:myP,to:activeP});
+}
+
+// ── AI CHAT SCREEN ────────────────────────────────
+function openAiScreen(){
+  document.getElementById('ai-screen').classList.add('show');
+  const p=aiPersonalities[settings.ai_personality||'friendly'];
+  document.getElementById('ai-personality-label').textContent=(p?.label||'Ramah').toUpperCase();
+  if(!aiChatHistory.length){
+    appendAiMsg('bot',
+      `Halo ${myN}! Saya Faiz Assistant ✦\n\n`+
+      `Saya siap membantu Anda dengan:\n`+
+      `• Tanya jawab dan pengetahuan umum\n`+
+      `• Mengubah nada pesan Anda\n`+
+      `• Meringkas percakapan\n`+
+      `• Tips & saran komunikasi\n\n`+
+      `Apa yang ingin Anda tanyakan?`
+    );
+  }
+}
+function closeAiScreen(){document.getElementById('ai-screen').classList.remove('show');}
+
+function appendAiMsg(role,text){
+  const box=document.getElementById('ai-chat-box');
+  const div=document.createElement('div');
+  div.className=`ai-msg ${role==='user'?'ai-user':'ai-bot'}`;
+  div.textContent=text;
+  box.appendChild(div); box.scrollTop=box.scrollHeight;
+}
+function appendAiTyping(){
+  const box=document.getElementById('ai-chat-box');
+  const div=document.createElement('div'); div.id='ai-typing';
+  div.className='ai-thinking';
+  div.innerHTML='<div class="ai-thinking-dots"><span></span><span></span><span></span></div><span>Faiz AI sedang berpikir…</span>';
+  box.appendChild(div); box.scrollTop=box.scrollHeight;
+}
+function removeAiTyping(){document.getElementById('ai-typing')?.remove();}
+
+function aiQuick(q){document.getElementById('ai-in').value=q; sendAiMsg();}
+function sendAiMsg(){
+  const inp=document.getElementById('ai-in'); const msg=inp.value.trim(); if(!msg)return;
+  inp.value='';
+  appendAiMsg('user',msg);
+  aiChatHistory.push({role:'user',content:msg});
+  appendAiTyping();
+  socket.emit('ai_chat',{pin:myP,message:msg,history:aiChatHistory.slice(-12),personality:settings.ai_personality||'friendly'});
+}
+socket.on('ai_chat_result',d=>{
+  removeAiTyping();
+  appendAiMsg('bot',d.result);
+  aiChatHistory.push({role:'assistant',content:d.result});
+});
+
+// ── TYPING ────────────────────────────────────────
+let typeT;
+function handleTyping(){if(activeP)socket.emit('typing',{from:myP,to:activeP});}
+socket.on('is_typing',d=>{
+  if(d.from!==activeP)return;
+  const el=document.getElementById('chat-typing');
+  el.style.display='flex'; clearTimeout(typeT);
+  typeT=setTimeout(()=>el.style.display='none',2200);
+});
+
+// ── INCOMING MESSAGES ─────────────────────────────
+socket.on('new_upd',d=>{
+  const peer=d.msg.sender===myP?d.to:d.msg.sender;
+  if(!chatData[peer])chatData[peer]={name:d.oN,av:d.oA,msgs:[],unread:0};
+  chatData[peer].msgs.push(d.msg);
+  const open=activeP===peer&&document.getElementById('scr-chat').classList.contains('active');
+  if(open){
+    appendBubble(d.msg);
+    if(!settings.stealth_read)socket.emit('read_all',{from:myP,to:peer});
+  }else if(d.msg.sender!==myP){
+    chatData[peer].unread=(chatData[peer].unread||0)+1; updateBadge();
+  }
+  renderChats();
+  if(aiInChatEnabled[peer]&&d.msg.sender!==myP&&d.msg.type==='text'){
+    setTimeout(()=>socket.emit('ai_inline_chat',{pin:myP,message:`Bantu saya merespons pesan ini: "${d.msg.cont}"`,peer}),1500);
+  }
+});
+socket.on('read_sync',d=>{
+  if(chatData[d.from]){chatData[d.from].msgs.forEach(m=>{if(m.sender===myP)m.status='Read';});
+    if(activeP===d.from)renderMsgs();}
+  if(d.from)interactionCounts[d.from]=(interactionCounts[d.from]||0)+1;
+});
+socket.on('interaction_updated',d=>{
+  if(d.peer)interactionCounts[d.peer]=(interactionCounts[d.peer]||0)+1;
+  renderChats();
+});
+
+// ── DND ───────────────────────────────────────────
+socket.on('recipient_dnd',d=>{
+  pendingHushPeer=d.peer;
+  document.getElementById('hush-name').textContent=d.name;
+  document.getElementById('hush-ov').classList.add('show');
+});
+function hushForce(){
+  document.getElementById('hush-ov').classList.remove('show');
+  if(pendingHushPeer){
+    const txt=document.getElementById('msg-in').value.trim();
+    if(txt)socket.emit('msg',{from:myP,to:pendingHushPeer,cont:txt,type:'text',force:true});
+    pendingHushPeer=null;
+  }
+}
+
+// ── CHAT MENU ─────────────────────────────────────
+function showChatMenu(){
+  const locked=lockedChats[activeP];
+  SM('Opsi Chat',`
+    <div class="btn" style="width:100%;margin-bottom:8px;" onclick="showSummary();CM()">✦ Ringkas AI</div>
+    <div class="btn" style="width:100%;margin-bottom:8px;" onclick="showSmartSearch();CM()">🔍 Smart Search</div>
+    <div class="btn btn-gold" style="width:100%;margin-bottom:8px;" onclick="showAiInChat();CS();CM()">✦ Tambahkan AI</div>
+    <div class="btn" style="width:100%;margin-bottom:8px;" onclick="${locked?'unlockChat':'lockChat'}('${activeP}');CM()">${locked?'🔓 Buka Kunci':'🔒 Kunci Chat'}</div>
+    <div class="btn" style="width:100%;margin-bottom:8px;" onclick="deleteChat('${activeP}')">Hapus Chat</div>
+    <div class="btn btn-danger" style="width:100%;" onclick="CM()">Tutup</div>`);
+}
+function lockChat(p){lockedChats[p]=true; socket.emit('lock_chat',{pin:myP,peer:p,locked:true}); toast('Chat dikunci');}
+function unlockChat(p){delete lockedChats[p]; socket.emit('lock_chat',{pin:myP,peer:p,locked:false}); toast('Kunci dibuka');}
+function deleteChat(p){socket.emit('delete_chat',{from:myP,to:p}); CM(); delete chatData[p]; renderChats(); goBack();}
+socket.on('chat_deleted',d=>{delete chatData[d.by]; renderChats(); if(activeP===d.by)go('scr-main','l');});
+
+// ── REMINDER ─────────────────────────────────────
+function showReminderCreate(){
+  SM('Tambah Reminder',`
+    <input class="input" id="rm-txt" placeholder="Contoh: Bahas proposal dengan tim" style="margin-bottom:8px;">
+    <input class="input" id="rm-dt" type="datetime-local" style="margin-bottom:14px;">
+    <div class="btn btn-primary" style="width:100%;" onclick="saveReminder()">Simpan</div>`);
+  document.getElementById('rm-dt').value=new Date(Date.now()+3600000).toISOString().slice(0,16);
+}
+function saveReminder(){
+  const txt=document.getElementById('rm-txt').value.trim(); const dt=document.getElementById('rm-dt').value;
+  if(!txt||!dt)return toast('Isi semua field!');
+  socket.emit('save_reminder',{pin:myP,text:txt,at:dt}); CM(); toast('Reminder disimpan!');
+}
+socket.on('reminder_due',d=>{toast(`⏰ ${d.text}`,5000);});
+
+// ── SEND OTHER TYPES ──────────────────────────────
+function sendPing(){if(activeP)socket.emit('msg',{from:myP,to:activeP,cont:'PING',type:'ping'});}
+function triggerFile(){CS(); document.getElementById('f-hd').click();}
+function sendPhoto(el){const r=new FileReader(); r.onload=ev=>socket.emit('msg',{from:myP,to:activeP,cont:ev.target.result,type:'img'}); r.readAsDataURL(el.files[0]); el.value='';}
+function sendLoc(){CS(); navigator.geolocation.getCurrentPosition(p=>{socket.emit('msg',{from:myP,to:activeP,cont:`https://www.google.com/maps?q=${p.coords.latitude},${p.coords.longitude}`,type:'loc'});},()=>toast('Izin lokasi ditolak'));}
+
+// ── FRIENDS ───────────────────────────────────────
+function renderFriends(){
+  const el=document.getElementById('friend-list'); el.innerHTML='';
+  const keys=Object.keys(friendsData);
+  // Update count label
+  document.getElementById('friends-count-label').textContent=keys.length?`${keys.length} teman`:'';
+  if(!keys.length){
+    el.innerHTML='<div style="text-align:center;color:var(--ink-3);padding:52px 20px;"><div style="font-size:32px;margin-bottom:12px;opacity:.4;">👥</div><div style="font-family:\'Cormorant Garamond\',serif;font-size:18px;font-weight:600;margin-bottom:6px;">Belum ada teman</div><div style="font-size:13px;">Tambah teman menggunakan PIN atau QR</div></div>';
+    return;
+  }
+  keys.forEach(p=>{
+    const u=friendsData[p]; const blocked=blocksData.has(p);
+    const lvl=getFriendshipLevel(interactionCounts[p]||0);
+    const cnt=interactionCounts[p]||0;
+    const nextLvl=LEVELS.find(l=>l.min>lvl.min);
+    const pct=nextLvl?Math.min(100,Math.floor((cnt-lvl.min)/(nextLvl.min-lvl.min)*100)):100;
+    el.innerHTML+=`<div class="li" style="flex-direction:column;align-items:flex-start;cursor:default;">
+      <div style="display:flex;align-items:center;gap:13px;width:100%;">
+        <div class="av" style="width:46px;height:46px;${blocked?'filter:grayscale(1);opacity:.5;':''}"><img src="${u.av}"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px;">
+            <span>${u.name+(u.mood?' '+u.mood:'')}</span>
+            <span style="font-size:14px;">${lvl.icon}</span>
+          </div>
+          <div style="font-size:10px;color:var(--gold);font-weight:500;letter-spacing:.04em;margin-top:1px;">PIN · ${p}</div>
+          <div class="friendship-bar" style="width:80px;margin-top:5px;">
+            <div class="friendship-fill" style="width:${pct}%;background:${lvl.color};"></div>
+          </div>
+          <div style="font-size:9px;color:var(--ink-3);margin-top:2px;letter-spacing:.03em;">${lvl.name.toUpperCase()} · ${cnt}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
+        <div class="btn btn-sm btn-primary" onclick="startConvo('${p}')">Chat</div>
+        ${blocked
+          ?`<div class="btn btn-sm" onclick="unblock('${p}')">Buka Blokir</div>`
+          :`<div class="btn btn-sm btn-danger" onclick="blockU('${p}')">Blokir</div>`}
+        <div class="btn btn-sm" onclick="confDelFriend('${p}')" style="color:var(--red);">Hapus</div>
+      </div>
+    </div>`;
+  });
+}
+function startConvo(p){if(!chatData[p])chatData[p]={name:friendsData[p].name,av:friendsData[p].av,msgs:[],unread:0}; openChat(p);}
+function blockU(p){socket.emit('block_user',{blocker:myP,blocked:p}); blocksData.add(p); renderFriends(); renderChats(); toast('Diblokir');}
+function unblock(p){socket.emit('unblock_user',{blocker:myP,blocked:p}); blocksData.delete(p); renderFriends(); renderChats(); toast('Blokir dicabut');}
+socket.on('you_are_blocked',d=>{if(chatData[d.blocker])chatData[d.blocker].blockedByThem=true; renderChats();});
+socket.on('you_are_unblocked',d=>{if(chatData[d.blocker])delete chatData[d.blocker].blockedByThem; renderChats();});
+function confDelFriend(p){
+  SM('Hapus Teman',`
+    <p style="margin-bottom:16px;font-size:14px;">Hapus <strong>${friendsData[p]?.name||p}</strong> dari daftar teman?</p>
+    <div style="display:flex;gap:8px;">
+      <div class="btn btn-danger" style="flex:1;" onclick="delFriend('${p}')">Hapus</div>
+      <div class="btn" style="flex:1;" onclick="CM()">Batal</div>
+    </div>`);
+}
+function delFriend(p){
+  socket.emit('delete_friend',{from:myP,to:p}); delete friendsData[p]; delete chatData[p];
+  renderFriends(); renderChats(); CM(); toast('Teman dihapus');
+  if(activeP===p)go('scr-main','l');
+}
+socket.on('friend_removed',d=>{delete friendsData[d.by]; delete chatData[d.by]; renderFriends(); renderChats(); if(activeP===d.by)go('scr-main','l');});
+
+// ── ADD FRIEND ────────────────────────────────────
+function showAddFriend(){
+  SM('Tambah Teman',`
+    <input class="input" id="af-p" placeholder="PIN (8 karakter)" style="margin-bottom:10px;">
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <div class="btn btn-primary" style="flex:1;" onclick="findPin()">Cari</div>
+      <div class="btn" style="flex:1;" onclick="startScan()">📷 Scan QR</div>
+    </div>
+    <div id="af-res"></div>`);
+}
+function findPin(){const p=document.getElementById('af-p')?.value.trim(); if(!p)return toast('Masukkan PIN!'); socket.emit('find',{pin:p,fromScan:false});}
+socket.on('found',d=>{
+  if(!d||d.pin===myP)return toast('Tidak bisa tambah diri sendiri!');
+  const r=document.getElementById('af-res');
+  if(r)r.innerHTML=`<div class="li"><div class="av" style="width:46px;height:46px;"><img src="${d.av}"></div><div style="flex:1;"><div style="font-weight:600;font-size:14px;">${d.name}</div><div style="font-size:10px;color:var(--gold);font-weight:500;letter-spacing:.04em;">PIN · ${d.pin}</div></div><div class="btn btn-sm btn-primary" onclick="sendFR('${d.pin}','${d.name}')">Tambah</div></div>`;
+});
+socket.on('not_found',()=>toast('User tidak ditemukan'));
+socket.on('found_scan',d=>{
+  if(!d||d.pin===myP){toast('PIN tidak valid!');return;}
+  SM('Tambah Teman',`
+    <div style="display:flex;align-items:center;gap:13px;margin-bottom:16px;">
+      <div class="av" style="width:46px;height:46px;"><img src="${d.av}"></div>
+      <div>
+        <div style="font-weight:600;font-size:15px;">${d.name}</div>
+        <div style="font-size:10px;color:var(--gold);font-weight:500;letter-spacing:.04em;">PIN · ${d.pin}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <div class="btn btn-primary" style="flex:1;" onclick="sendFR('${d.pin}','${d.name}')">Tambah</div>
+      <div class="btn" style="flex:1;" onclick="CM()">Batal</div>
+    </div>`);
+});
+function sendFR(pin,name){socket.emit('friend_request',{from:myP,fromName:myN,fromAv:myAv,to:pin}); toast(`Permintaan dikirim ke ${name}`); CM();}
+
+socket.on('friend_request_incoming',d=>{
+  pendingFR=d;
+  document.getElementById('freq-av').innerHTML=`<img src="${d.fromAv}" style="width:100%;height:100%;object-fit:cover;">`;
+  document.getElementById('freq-name').textContent=d.fromName;
+  document.getElementById('freq-pin').textContent='PIN · '+d.from;
+  document.getElementById('freq-txt').textContent=`${d.fromName} ingin berteman dengan Anda`;
+  document.getElementById('freq-ov').classList.add('show');
+});
+function acceptFriend(){if(!pendingFR)return; socket.emit('friend_accept',{from:myP,fromName:myN,fromAv:myAv,to:pendingFR.from,toName:pendingFR.fromName,toAv:pendingFR.fromAv}); document.getElementById('freq-ov').classList.remove('show'); pendingFR=null;}
+function rejectFriend(){document.getElementById('freq-ov').classList.remove('show'); pendingFR=null;}
+socket.on('friend_added',d=>{friendsData[d.pin]={name:d.name,av:d.av}; if(!chatData[d.pin])chatData[d.pin]={name:d.name,av:d.av,msgs:[],unread:0}; renderFriends(); renderChats(); toast(`${d.name} sekarang teman Anda!`);});
+
+// ── SCANNER ───────────────────────────────────────
+function startScan(){
+  CM(); document.getElementById('scan-ov').classList.add('show');
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(stream=>{
+    scanStream=stream; const v=document.getElementById('scan-vid'); v.srcObject=stream; v.play();
+    requestAnimationFrame(scanTick);
+  }).catch(()=>{toast('Kamera tidak bisa diakses'); stopScan();});
+}
+function scanTick(){
+  if(!scanStream)return;
+  const v=document.getElementById('scan-vid'),c=document.getElementById('scan-cvs');
+  if(v.readyState===v.HAVE_ENOUGH_DATA){
+    c.width=v.videoWidth; c.height=v.videoHeight;
+    const ctx=c.getContext('2d'); ctx.drawImage(v,0,0);
+    const code=jsQR(ctx.getImageData(0,0,c.width,c.height).data,c.width,c.height);
+    if(code){stopScan(); socket.emit('find',{pin:code.data.trim(),fromScan:true}); return;}
+  }
+  requestAnimationFrame(scanTick);
+}
+function stopScan(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop()); scanStream=null;} document.getElementById('scan-ov').classList.remove('show');}
+
+// ── VOICE CALL ────────────────────────────────────
+function mkAudio(){let a=document.getElementById('ra'); if(!a){a=document.createElement('audio'); a.id='ra'; a.autoplay=true; a.style.display='none'; document.body.appendChild(a);} return a;}
+function setupCallScreen(name,av){
+  callEnded=false;
+  document.getElementById('call-name').textContent=name;
+  document.getElementById('call-av').innerHTML=`<img src="${av}" style="width:100%;height:100%;object-fit:cover;">`;
+  document.getElementById('call-stat').textContent='Menghubungi…'; document.getElementById('call-stat').style.display='block';
+  document.getElementById('call-timer').style.display='none';
+}
+async function startCall(){
+  if(!activeP)return; callPeer=activeP;
+  const u=chatData[activeP]||{}; setupCallScreen(u.name||activeP,u.av||'');
+  prevScreen='scr-chat'; go('scr-call','u');
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    pc=new RTCPeerConnection(ICE);
+    localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+    pc.onicecandidate=e=>{if(e.candidate)socket.emit('call_ice',{to:callPeer,from:myP,candidate:e.candidate});};
+    pc.ontrack=e=>{mkAudio().srcObject=e.streams[0];};
+    const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+    socket.emit('call_offer',{to:callPeer,from:myP,fromName:myN,fromAv:myAv,offer});
+  }catch{toast('Izin mikrofon diperlukan'); callEnded=true; go('scr-chat','l');}
+}
+socket.on('call_offer',d=>{pendingOffer=d; callPeer=d.from; document.getElementById('inc-av').innerHTML=`<img src="${d.fromAv}" style="width:100%;height:100%;object-fit:cover;">`; document.getElementById('inc-name').textContent=d.fromName; document.getElementById('inc-call-ov').classList.add('show');});
+async function acceptCall(){
+  document.getElementById('inc-call-ov').classList.remove('show');
+  if(!pendingOffer)return; const d=pendingOffer; pendingOffer=null;
+  setupCallScreen(d.fromName,d.fromAv); prevScreen=document.querySelector('.screen.active')?.id||'scr-main'; go('scr-call','u');
+  try{
+    localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    pc=new RTCPeerConnection(ICE);
+    localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+    pc.onicecandidate=e=>{if(e.candidate)socket.emit('call_ice',{to:callPeer,from:myP,candidate:e.candidate});};
+    pc.ontrack=e=>{mkAudio().srcObject=e.streams[0];};
+    await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+    const ans=await pc.createAnswer(); await pc.setLocalDescription(ans);
+    socket.emit('call_answer',{to:callPeer,from:myP,answer:ans});
+    startCallTimer(); document.getElementById('call-stat').textContent='Terhubung';
+  }catch{toast('Gagal menjawab'); endCall();}
+}
+function rejectCall(){document.getElementById('inc-call-ov').classList.remove('show'); if(pendingOffer)socket.emit('call_reject',{to:pendingOffer.from,from:myP}); pendingOffer=null; callPeer='';}
+socket.on('call_answer',async d=>{if(!pc)return; await pc.setRemoteDescription(new RTCSessionDescription(d.answer)); document.getElementById('call-stat').textContent='Terhubung'; startCallTimer();});
+socket.on('call_ice',async d=>{if(pc&&d.candidate)try{await pc.addIceCandidate(new RTCIceCandidate(d.candidate));}catch(_){}});
+socket.on('call_reject',()=>{toast('Panggilan ditolak'); cleanCall(); if(document.getElementById('scr-call').classList.contains('active'))go(prevScreen||'scr-chat','l');});
+socket.on('call_ended',()=>{toast('Panggilan berakhir'); cleanCall(); if(document.getElementById('scr-call').classList.contains('active'))go(prevScreen||'scr-chat','l');});
+function endCall(){socket.emit('call_end',{to:callPeer,from:myP}); cleanCall(); if(document.getElementById('scr-call').classList.contains('active'))go(prevScreen||'scr-chat','l');}
+function cleanCall(){clearInterval(callTimer); callSec=0; isMuted=false; callEnded=true; document.getElementById('call-timer').style.display='none'; document.getElementById('call-timer').textContent='00:00'; document.getElementById('call-stat').style.display='block'; if(pc){pc.close();pc=null;} if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null;} document.getElementById('ra')?.remove();}
+function startCallTimer(){callSec=0; const t=document.getElementById('call-timer'); t.style.display='block'; document.getElementById('call-stat').style.display='none'; callTimer=setInterval(()=>{callSec++; const m=Math.floor(callSec/60); t.textContent=`${String(m).padStart(2,'0')}:${String(callSec%60).padStart(2,'0')}`;},1000);}
+function toggleMute(){isMuted=!isMuted; if(localStream)localStream.getAudioTracks().forEach(t=>t.enabled=!isMuted); document.getElementById('btn-mute').classList.toggle('cbtn-muted',isMuted); toast(isMuted?'Mikrofon mati':'Mikrofon aktif');}
+function toggleSpk(){isSpk=!isSpk; toast(isSpk?'Speaker aktif':'Speaker mati');}
+</script>
+</body>
+</html>
