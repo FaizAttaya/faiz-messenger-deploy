@@ -1,0 +1,7 @@
+flask
+flask-socketio
+g4f[all]
+python-socketio
+python-engineio
+gunicorn
+eventlet
